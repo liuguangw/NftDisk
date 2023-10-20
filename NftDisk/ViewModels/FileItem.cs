@@ -1,4 +1,6 @@
 using System;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using Liuguang.Storage;
 using ReactiveUI;
 
@@ -6,6 +8,7 @@ namespace Liuguang.NftDisk.ViewModels;
 
 public class FileItem : ViewModelBase
 {
+    const string ICON_PATH_PREFIX = "avares://NftDisk/Assets/icons";
     #region Fields
     private long id = 0;
     private FileType itemType = FileType.File;
@@ -38,6 +41,42 @@ public class FileItem : ViewModelBase
         get => name;
         set => this.RaiseAndSetIfChanged(ref name, value);
     }
+
+    public Bitmap? IconSource
+    {
+        get
+        {
+            string imgPath;
+            if (itemType == FileType.Dir)
+            {
+                imgPath = $"{ICON_PATH_PREFIX}/folder.png";
+            }
+            else
+            {
+                imgPath = $"{ICON_PATH_PREFIX}/file.png";
+            }
+            return new Bitmap(AssetLoader.Open(new Uri(imgPath)));
+        }
+    }
+
+    public string MainActionText
+    {
+        get
+        {
+            if (itemType == FileType.Dir)
+            {
+                return "打开";
+            }
+            else if (itemType == FileType.File)
+            {
+                return "获取地址";
+            }
+            return "error";
+        }
+    }
+
+    public bool CanCopyCid => itemType == FileType.File;
+
     public string CID => cid;
 
     public string SizeText

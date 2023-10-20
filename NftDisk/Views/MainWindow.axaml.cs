@@ -1,7 +1,9 @@
 using System;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Liuguang.NftDisk.ViewModels;
 
 namespace Liuguang.NftDisk.Views;
@@ -29,6 +31,25 @@ public partial class MainWindow : Window
         if (DataContext is MainWindowViewModel viewModel)
         {
             await viewModel.LoadFileListAsync();
+        }
+        AddHandler(DragDrop.DropEvent, ProcessDrop);
+    }
+
+    private async void ProcessDrop(object? sender, DragEventArgs eventArgs)
+    {
+        
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+        if (eventArgs.Data.Contains(DataFormats.Files))
+        {
+            var files = eventArgs.Data.GetFiles();
+            if (files is null)
+            {
+                return;
+            }
+            await viewModel.AskUploadFilesAsync(files);
         }
     }
 }
