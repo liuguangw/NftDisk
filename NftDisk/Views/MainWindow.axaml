@@ -14,7 +14,31 @@
              to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
         <vm:MainWindowViewModel/>
     </Design.DataContext>
-
-    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    <DataGrid ItemsSource="{Binding FileItems}"
+			IsReadOnly="True"
+			CanUserReorderColumns="True" CanUserResizeColumns="True" CanUserSortColumns="False"
+			GridLinesVisibility="All"
+			BorderThickness="1" BorderBrush="Gray">
+		<DataGrid.Columns>
+			<DataGridTextColumn Header="ID" Width="80"
+                    Binding="{Binding ID}"/>
+			<DataGridTextColumn Header="类型" Width="90"
+                    Binding="{Binding ItemTypeText}" />
+			<DataGridTextColumn Header="名称" Width="*"
+                    Binding="{Binding Name}" />
+			<DataGridTextColumn Header="CID" Width="*"
+                    Binding="{Binding CID}"/>
+			<DataGridTextColumn Header="上传时间" Width="*"
+                    Binding="{Binding UploadTimeText}" />
+			<DataGridTemplateColumn Header="大小" Width="110">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Margin="10,5" HorizontalAlignment="Right" VerticalAlignment="Center" 
+                                        Text="{Binding SizeText}"/>
+                        </DataTemplate>
+				</DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+		</DataGrid.Columns>
+	</DataGrid>
 
 </Window>
