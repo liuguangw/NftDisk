@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="Liuguang.NftDisk.Views.MainWindow"
-        x:DataType="vm:MainWindowViewModel"
+        x:DataType="vm:MainWindowViewModel" x:CompileBindings="False"
         Icon="/Assets/logo.ico"
         Title="NftDisk">
 
@@ -15,54 +15,47 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
     <Panel>
-        <DockPanel Background="#CCCCCC">
-            <WrapPanel DockPanel.Dock="Top" Background="#F6F8FB">
-                <WrapPanel.Styles>
-                    <Style Selector="Button">
-                        <Setter Property="Width" Value="36"/>
-                        <Setter Property="Height" Value="36"/>
-                        <Setter Property="Margin" Value="0,5"/>
-                        <Setter Property="VerticalAlignment" Value="Center"/>
-                        <Setter Property="Background" Value="{Binding $parent[WrapPanel].Background}"/>
-                    </Style>
-                    <Style Selector="TextBox">
-                        <Setter Property="Margin" Value="5"/>
-                        <Setter Property="MinWidth" Value="360" />
-                    </Style>
-                </WrapPanel.Styles>
-                <Button Margin="8,5,0,5" ToolTip.Tip="上一级">
-                    <Image Source="/Assets/icons/arrow_up.png"/>
-                </Button>
-                <Button ToolTip.Tip="刷新">
-                    <Image Source="/Assets/icons/reload.png"/>
-                </Button>
-                <Button ToolTip.Tip="首页">
-                    <Image Source="/Assets/icons/home.png"/>
-                </Button>
-                <TextBox Text="/" />
-                <Button ToolTip.Tip="设置" HorizontalAlignment="Right">
-                    <Image Source="/Assets/icons/setting.png"/>
-                </Button>
-            </WrapPanel>
+        <DockPanel>
+            <StackPanel DockPanel.Dock="Top" Margin="8,0">
+                <Grid Height="46" RowDefinitions="*" ColumnDefinitions="36,36,36,*,36,36">
+                    <Button Classes="icon" Grid.Column="0" ToolTip.Tip="上一级" Command="{Binding GotoUpFolderCommand}">
+                        <Image Source="/Assets/icons/arrow_up.png"/>
+                    </Button>
+                    <Button Classes="icon" Grid.Column="1" ToolTip.Tip="刷新" Command="{Binding RefreshAction}">
+                        <Image Source="/Assets/icons/reload.png"/>
+                    </Button>
+                    <Button Classes="icon" Grid.Column="2" ToolTip.Tip="首页" Command="{Binding GotoRootFolderAction}">
+                        <Image Source="/Assets/icons/home.png"/>
+                    </Button>
+                    <TextBox Classes="search" Grid.Column="3" Text="{Binding CurrentDir}" />
+                    <Button Classes="icon" Grid.Column="4" ToolTip.Tip="上传数据库">
+                        <Image Source="/Assets/icons/database_sync.png"/>
+                    </Button>
+                    <Button Classes="icon" Grid.Column="5" ToolTip.Tip="设置" Margin="0,5">
+                        <Image Source="/Assets/icons/setting.png"/>
+                    </Button>
+                </Grid>
+                <WrapPanel Margin="0,0,0,4">
+                    <Button Classes="icon_text">
+                        <WrapPanel>
+                            <Image Source="/Assets/icons/new_folde.png"/>
+                            <TextBlock Text="创建目录"/>
+                        </WrapPanel>
+                    </Button>
+                    <Button Classes="icon_text">
+                        <WrapPanel>
+                            <Image Source="/Assets/icons/upload.png"/>
+                            <TextBlock Text="上传"/>
+                        </WrapPanel>
+                    </Button>
+                </WrapPanel>
+            </StackPanel>
             <DataGrid DockPanel.Dock="Bottom" ItemsSource="{Binding FileItems}" Margin="8,0,8,5" Background="#FEFEFE"
                     Name="MainGrid" DragDrop.AllowDrop="True"
                     IsReadOnly="True"
                     CanUserReorderColumns="True" CanUserResizeColumns="True" CanUserSortColumns="False"
                     GridLinesVisibility="All"
                     BorderThickness="1" BorderBrush="Gray">
-                <DataGrid.Styles>
-                    <Style Selector="MenuItem.delete">
-                        <Setter Property="TextBlock.Background" Value="#f97348" />
-                        <Setter Property="Foreground" Value="White"/>
-                        <Style Selector="^:pointerover /template/ ContentPresenter">
-                            <Setter Property="Background" Value="#FF4742"/>
-                            <Setter Property="Foreground" Value="White"/>
-                        </Style>
-                        <Style Selector="^:pointerover /template/ Border">
-                            <Setter Property="Background" Value="#FF4742"/>
-                        </Style>
-                    </Style>
-                </DataGrid.Styles>
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="ID" Width="80"
                             Binding="{Binding ID}"/>
@@ -95,6 +88,7 @@
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <SplitButton Width="120" Content="{Binding MainActionText}"
+                                        Command="{Binding $parent[DataGrid].DataContext.OpenDirOrShowFileLinksCommand}" CommandParameter="{Binding}"
                                         HorizontalAlignment="Center" VerticalAlignment="Center"
                                         HorizontalContentAlignment="Center">
                                         <SplitButton.Flyout>

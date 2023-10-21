@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text;
 using Microsoft.Data.Sqlite;
 
 namespace Liuguang.Storage;
@@ -26,7 +27,8 @@ public sealed class StorageDatabase
 
     public async Task CloseAsync()
     {
-        if(connection is null){
+        if (connection is null)
+        {
             return;
         }
         await connection.CloseAsync();
@@ -132,5 +134,77 @@ public sealed class StorageDatabase
             }
         }
         return fileList;
+    }
+
+    public async Task<string> GetFullPathAsync(long pathID)
+    {
+        if (pathID == 0)
+        {
+            return "/";
+        }
+        if (connection is null)
+        {
+            throw new Exception("database error, connection is null");
+        }
+        StringBuilder fullPath = new();
+        while (pathID != 0)
+        {
+            var command = connection.CreateCommand();
+            command.CommandText = $"SELECT id,name,parent_id FROM files WHERE id={pathID}";
+            using (var reader = await command.ExecuteReaderAsync())
+            {
+                if (reader.Read())
+                {
+                    var tPath = string.Format("/{0}", reader.GetString("name"));
+                    fullPath.Insert(0, tPath);
+                }
+                pathID = reader.GetInt64("parent_id");
+            }
+        }
+        return fullPath.ToString();
+    }
+
+    public async Task<StorageFile?> GetFileInfoAsync(long pathID)
+    {
+        if (connection is null)
+        {
+            throw new Exception("database error, connection is null");
+        }
+        if (pathID == 0)
+        {
+            return null;
+        }
+        var command = connection.CreateCommand();
+        command.CommandText = $"SELECT *FROM files WHERE id={pathID}";
+        using var reader = await command.ExecuteReaderAsync();
+        StorageFile? file = null;
+        if (reader.Read())
+        {
+            var itemID = reader.GetInt64("id");
+            var parentID = reader.GetInt64("parent_id");
+            var itemName = reader.GetString("name");
+            var uploadTime = reader.GetInt64("upload_time");
+            var fType = reader.GetInt32("item_type");
+            file = new StorageFile(itemName)
+            {
+                ID = itemID,
+                ParentID = parentID,
+                UploadTime = uploadTime
+            };
+            //目录
+            if (fType == 0)
+            {
+                file.ItemType = FileType.Dir;
+            }
+            //文件
+            else if (fType == 1)
+            {
+                var cid = reader.GetString("cid");
+                var size = reader.GetInt64("size");
+                file.CID = cid;
+                file.Size = size;
+            }
+        }
+        return file;
     }
 }

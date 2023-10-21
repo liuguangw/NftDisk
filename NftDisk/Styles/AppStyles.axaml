@@ -1,0 +1,86 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Design.PreviewWith>
+    <Border Padding="20">
+      <!-- Add Controls for Previewer Here -->
+    </Border>
+  </Design.PreviewWith>
+
+    <!-- Add Styles Here -->
+    <!--主菜单栏的图标按钮-->
+    <Style Selector="Button.icon">
+        <Setter Property="Width" Value="36"/>
+        <Setter Property="Height" Value="36"/>
+        <Setter Property="Margin" Value="0,5,5,5"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Cursor" Value="Hand" />
+        <Style Selector="^ /template/ ContentPresenter">
+            <Setter Property="Background" Value="#FAFBFC"/>
+            <Setter Property="BorderBrush" Value="#CCCCCC"/>
+        </Style>
+        <Style Selector="^:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#F3F4F6"/>
+            <Setter Property="BorderBrush" Value="#7A7A7A"/>
+        </Style>
+        <Style Selector="^:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="#999999"/>
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Cursor" Value="None" />
+            <Setter Property="Opacity" Value="0.6" />
+        </Style>
+        <Style Selector="^:disabled /template/ ContentPresenter">
+            <Setter Property="Background" Value="#ACAFB3"/>
+        </Style>
+    </Style>
+    <!--图标文字组合按钮-->
+    <Style Selector="Button.icon_text">
+        <Setter Property="Height" Value="40"/>
+        <Setter Property="Margin" Value="0,0,5,0"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="BorderThickness" Value="1"/>
+        <Style Selector="^ WrapPanel">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="^ WrapPanel Image">
+            <Setter Property="Width" Value="16"/>
+            <Setter Property="Height" Value="16"/>
+            <Setter Property="Margin" Value="0,0,5,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="^ WrapPanel TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="^ /template/ ContentPresenter">
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="Background" Value="#0d6efd"/>
+            <Setter Property="BorderBrush" Value="#0d6efd"/>
+        </Style>
+        <Style Selector="^:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#0b5ed7"/>
+            <Setter Property="BorderBrush" Value="#0a58ca"/>
+        </Style>
+        <Style Selector="^:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="#0a58ca"/>
+            <Setter Property="BorderBrush" Value="#0a53be"/>
+        </Style>
+    </Style>
+    <!--搜索框-->
+    <Style Selector="TextBox.search">
+        <Setter Property="Margin" Value="0,5,5,5"/>
+    </Style>
+    <!--删除菜单-->
+    <Style Selector="MenuItem.delete">
+        <Setter Property="TextBlock.Background" Value="#f97348" />
+        <Setter Property="Foreground" Value="White"/>
+        <Style Selector="^:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#FF4742"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="^:pointerover /template/ Border">
+            <Setter Property="Background" Value="#FF4742"/>
+        </Style>
+    </Style>
+</Styles>

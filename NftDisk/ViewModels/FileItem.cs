@@ -21,6 +21,7 @@ public class FileItem : ViewModelBase
     #region Properties
     public long ID => id;
     public long ParentID { get; set; } = 0;
+    public FileType ItemType => itemType;
     public string ItemTypeText
     {
         get
