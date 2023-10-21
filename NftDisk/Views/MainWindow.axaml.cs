@@ -3,7 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
-using Avalonia.Platform.Storage;
 using Liuguang.NftDisk.ViewModels;
 
 namespace Liuguang.NftDisk.Views;
@@ -32,7 +31,7 @@ public partial class MainWindow : Window
         {
             await viewModel.LoadFileListAsync();
         }
-        AddHandler(DragDrop.DropEvent, ProcessDrop);
+        this.Find<DataGrid>("MainGrid")?.AddHandler(DragDrop.DropEvent, ProcessDrop);
     }
 
     private async void ProcessDrop(object? sender, DragEventArgs eventArgs)
