@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.24.4" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="7.0.12" />
   </ItemGroup>
 

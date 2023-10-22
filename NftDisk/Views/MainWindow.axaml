@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Liuguang.NftDisk.ViewModels"
+        xmlns:pages="using:Liuguang.NftDisk.Pages"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
@@ -36,7 +37,7 @@
                     </Button>
                 </Grid>
                 <WrapPanel Margin="0,0,0,4">
-                    <Button Classes="icon_text">
+                    <Button Classes="icon_text" Command="{Binding CreateFolderAction}">
                         <WrapPanel>
                             <Image Source="/Assets/icons/new_folde.png"/>
                             <TextBlock Text="创建目录"/>
@@ -112,15 +113,9 @@
                 </DataGrid.Columns>
             </DataGrid>
         </DockPanel>
-        <Rectangle Fill="Black" Opacity="0.5" IsVisible="{Binding ShowDebug}" />
-        <Grid Background="White" Width="480" Height="500" IsVisible="{Binding ShowDebug}"
-              VerticalAlignment="Center"  HorizontalAlignment="Center">
-            <TextBlock>
-                <Bold>Debug 区域</Bold>
-                <LineBreak />
-                <Run Text="{Binding DebugText}"/>
-            </TextBlock>
-        </Grid>
+        <Rectangle Fill="Black" Opacity="0.5" IsVisible="{Binding ShowModal}" />
+        <pages:AskStringPage Width="360" Height="240" HorizontalAlignment="Center" VerticalAlignment="Center"
+            DataContext="{Binding AskStringVm}" IsVisible="{Binding ShowModal}" />
     </Panel>
 
 </Window>

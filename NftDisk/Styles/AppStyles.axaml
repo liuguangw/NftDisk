@@ -83,4 +83,35 @@
             <Setter Property="Background" Value="#FF4742"/>
         </Style>
     </Style>
+    <!--弹框标题栏-->
+    <Style Selector="Grid.page_header">
+        <Setter Property="Height" Value="36"/>
+        <Style Selector="^ > Panel">
+            <Setter Property="Background" Value="#3C3C3D"/>
+            <Style Selector="^ > TextBlock">
+                <Setter Property="Margin" Value="15,0"/>
+                <Setter Property="Foreground" Value="#FFFFF3"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+        </Style>
+        <Style Selector="^ > Button">
+            <Setter Property="CornerRadius" Value="0 0 0 0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="36"/>
+            <Style Selector="^ > Image">
+                <Setter Property="Width" Value="20"/>
+                <Setter Property="Height" Value="20"/>
+            </Style>
+            <Style Selector="^ /template/ ContentPresenter">
+                <Setter Property="Background" Value="#3C3C3D"/>
+            </Style>
+            <Style Selector="^:pointerover /template/ ContentPresenter">
+                <Setter Property="Background" Value="#e81123"/>
+            </Style>
+            <Style Selector="^:pressed /template/ ContentPresenter">
+                <Setter Property="Background" Value="#a1353e"/>
+            </Style>
+        </Style>
+    </Style>
 </Styles>

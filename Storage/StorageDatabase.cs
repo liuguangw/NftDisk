@@ -207,4 +207,38 @@ public sealed class StorageDatabase
         }
         return file;
     }
+
+    public async Task InsertFileLog(StorageFile fileLog)
+    {
+        if (connection is null)
+        {
+            throw new Exception("database error, connection is null");
+        }
+        var command = connection.CreateCommand();
+        var paramNames = new string[]{
+            "parent_id", "item_type", "name", "cid", "size", "upload_time"
+        };
+        var keyStr = string.Join(", ", paramNames);
+        var valueStrBuilder = new StringBuilder();
+        for (var i = 0; i < paramNames.Length; i++)
+        {
+            if (i == 0)
+            {
+                valueStrBuilder.Append("$" + paramNames[i]);
+            }
+            else
+            {
+                valueStrBuilder.Append(", $" + paramNames[i]);
+            }
+        }
+        var valueStr = valueStrBuilder.ToString();
+        command.CommandText = $"INSERT INTO files ({keyStr}) VALUES ({valueStr})";
+        command.Parameters.AddWithValue("$parent_id", fileLog.ParentID);
+        command.Parameters.AddWithValue("$item_type", (int)fileLog.ItemType);
+        command.Parameters.AddWithValue("$name", fileLog.Name);
+        command.Parameters.AddWithValue("$cid", fileLog.CID);
+        command.Parameters.AddWithValue("$size", fileLog.Size);
+        command.Parameters.AddWithValue("$upload_time", fileLog.UploadTime);
+        await command.ExecuteNonQueryAsync();
+    }
 }
