@@ -116,12 +116,7 @@ public class MainWindowViewModel : ViewModelBase
             ShowModal = false;
             if (AskUploadVm.Confirm)
             {
-                ShowModal = true;
-                UploadListVm.ShowModal = true;
-                UploadListVm.CompleteAction = () =>
-                {
-                    ShowModal = false;
-                };
+                ShowTaskList();
                 _ = Task.Run(async () => await AddUploadTaskAsync(currentDirId, fileList, dirList));
             }
         };
@@ -291,5 +286,37 @@ public class MainWindowViewModel : ViewModelBase
         folderLog.SyncTime();
         await database.InsertFileLog(folderLog);
         RefreshAction();
+    }
+
+    /// <summary>
+    /// 切换任务列表的显示、隐藏状态
+    /// </summary>
+    public async void SwitchTaskListAction()
+    {
+        if (UploadListVm.ShowModal)
+        {
+            await HideTaskListAsync();
+        }
+        else
+        {
+            ShowTaskList();
+        }
+    }
+
+    private void ShowTaskList()
+    {
+        UploadListVm.ShowModal = true;
+        UploadListVm.IsStyleHidden = false;
+        UploadListVm.CompleteAction = async () =>
+        {
+            await HideTaskListAsync();
+        };
+    }
+
+    private async Task HideTaskListAsync()
+    {
+        UploadListVm.IsStyleHidden = true;
+        await Task.Delay(200);
+        UploadListVm.ShowModal = false;
     }
 }

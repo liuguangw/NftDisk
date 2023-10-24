@@ -6,6 +6,7 @@
              mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="225"
              x:Class="Liuguang.NftDisk.Views.Pages.UploadListPage"
              x:DataType="vm:UploadListViewModel" x:CompileBindings="False">
+  <Border BorderBrush="#95a5a6" BorderThickness="1">
   <DockPanel Background="White">
       <Grid DockPanel.Dock="Top" Classes="page_header" RowDefinitions="*" ColumnDefinitions="*,36">
         <Panel Grid.Column="0">
@@ -15,9 +16,9 @@
             <Image Source="/Assets/icons/close.png"/>
         </Button>
       </Grid>
-      <Panel DockPanel.Dock="Bottom" Margin="5">
-        <StackPanel Height="260" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="5">
-          <DataGrid Height="260" ItemsSource="{Binding TaskList}" Margin="8,0,8,5"
+      <Panel DockPanel.Dock="Bottom" Margin="8">
+        <Grid Margin="0,0,0,45">
+          <DataGrid ItemsSource="{Binding TaskList}"
                     Name="MainGrid" DragDrop.AllowDrop="True"
                     IsReadOnly="True"
                     CanUserReorderColumns="True" CanUserResizeColumns="True" CanUserSortColumns="False"
@@ -38,11 +39,12 @@
                             Binding="{Binding StatusText}" />
                 </DataGrid.Columns>
           </DataGrid>
-        </StackPanel>
+        </Grid>
         <WrapPanel HorizontalAlignment="Right" VerticalAlignment="Bottom">
           <Button Content="取消" Command="{Binding CancelCommand}" Margin="0,0,8,0"/>
           <Button Content="确定" Command="{Binding ConfirmCommand}"/>
         </WrapPanel>
       </Panel>
   </DockPanel>
+  </Border>
 </UserControl>

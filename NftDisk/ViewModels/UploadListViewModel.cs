@@ -12,6 +12,14 @@ public class UploadListViewModel : ViewModelBase
     private bool _confirm = false;
     private Action? _completeAction = null;
 
+    private bool _isStyleHidden = true;
+
+    public bool IsStyleHidden
+    {
+        get => _isStyleHidden;
+        set => this.RaiseAndSetIfChanged(ref _isStyleHidden, value);
+    }
+
     public bool ShowModal
     {
         get => _showModal;
@@ -33,14 +41,12 @@ public class UploadListViewModel : ViewModelBase
     private void ProcessConfirmAction()
     {
         _confirm = true;
-        ShowModal = false;
         _completeAction?.Invoke();
     }
 
     private void ProcessCancelAction()
     {
         _confirm = false;
-        ShowModal = false;
         _completeAction?.Invoke();
     }
 }

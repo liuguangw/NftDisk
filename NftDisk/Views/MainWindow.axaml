@@ -17,7 +17,7 @@
     <Panel>
         <DockPanel>
             <StackPanel DockPanel.Dock="Top" Margin="8,0">
-                <Grid Height="46" RowDefinitions="*" ColumnDefinitions="36,36,36,*,36,36">
+                <Grid Height="46" RowDefinitions="*" ColumnDefinitions="36,36,36,*,36,36,36">
                     <Button Classes="icon" Grid.Column="0" ToolTip.Tip="上一级" Command="{Binding GotoUpFolderCommand}">
                         <Image Source="/Assets/icons/arrow_up.png"/>
                     </Button>
@@ -28,10 +28,13 @@
                         <Image Source="/Assets/icons/home.png"/>
                     </Button>
                     <TextBox Classes="search" Grid.Column="3" Text="{Binding CurrentDir}" />
-                    <Button Classes="icon" Grid.Column="4" ToolTip.Tip="上传数据库">
+                    <Button Classes="icon" Grid.Column="4" ToolTip.Tip="任务列表" Command="{Binding SwitchTaskListAction}">
+                        <Image Source="/Assets/icons/task_list.png"/>
+                    </Button>
+                    <Button Classes="icon" Grid.Column="5" ToolTip.Tip="上传数据库">
                         <Image Source="/Assets/icons/database_sync.png"/>
                     </Button>
-                    <Button Classes="icon" Grid.Column="5" ToolTip.Tip="设置" Margin="0,5">
+                    <Button Classes="icon" Grid.Column="6" ToolTip.Tip="设置" Margin="0,5">
                         <Image Source="/Assets/icons/setting.png"/>
                     </Button>
                 </Grid>
@@ -112,13 +115,12 @@
                 </DataGrid.Columns>
             </DataGrid>
         </DockPanel>
+        <pages:UploadListPage DataContext="{Binding UploadListVm}" IsVisible="{Binding ShowModal}" Classes.hidden="{Binding IsStyleHidden}" />
         <Rectangle Fill="Black" Opacity="0.5" IsVisible="{Binding ShowModal}" />
         <pages:AskStringPage Width="360" Height="240" HorizontalAlignment="Center" VerticalAlignment="Center"
             DataContext="{Binding AskStringVm}" IsVisible="{Binding ShowModal}" />
         <pages:AskUploadPage Width="420" Height="360" HorizontalAlignment="Center" VerticalAlignment="Center"
             DataContext="{Binding AskUploadVm}" IsVisible="{Binding ShowModal}" />
-        <pages:UploadListPage Width="500" Height="360" HorizontalAlignment="Center" VerticalAlignment="Center"
-            DataContext="{Binding UploadListVm}" IsVisible="{Binding ShowModal}" />
     </Panel>
 
 </Window>

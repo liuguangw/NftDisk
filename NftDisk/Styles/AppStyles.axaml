@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:pages="using:Liuguang.NftDisk.Views.Pages">
   <Design.PreviewWith>
     <Border Padding="20">
       <!-- Add Controls for Previewer Here -->
@@ -112,6 +113,21 @@
             <Style Selector="^:pressed /template/ ContentPresenter">
                 <Setter Property="Background" Value="#a1353e"/>
             </Style>
+        </Style>
+    </Style>
+    <!--任务列表-->
+    <Style Selector="pages|UploadListPage">
+        <Setter Property="Width" Value="500"/>
+        <Setter Property="HorizontalAlignment" Value="Right"/>
+        <Setter Property="Margin" Value="0,80,0,0"/>
+        <Setter Property="RenderTransform" Value="translateX(0)"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+            </Transitions>
+        </Setter>
+        <Style Selector="^.hidden">
+            <Setter Property="RenderTransform" Value="translateX(500px)"/>
         </Style>
     </Style>
 </Styles>
