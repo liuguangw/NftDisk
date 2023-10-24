@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Reactive;
 using System.Threading.Tasks;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Liuguang.Storage;
 using ReactiveUI;
 
@@ -34,6 +35,9 @@ public class MainWindowViewModel : ViewModelBase
     }
 
     public AskStringViewModel AskStringVm { get; } = new();
+
+    public AskUploadViewModel AskUploadVm { get; } = new();
+    public UploadListViewModel UploadListVm { get; } = new();
     public ReactiveCommand<FileItem, Unit> OpenDirOrShowFileLinksCommand { get; }
     public ReactiveCommand<Unit, Unit> GotoUpFolderCommand { get; }
     public bool CanGotoUpFolder => currentDirId != 0;
@@ -88,25 +92,121 @@ public class MainWindowViewModel : ViewModelBase
     /// 询问是否上传这些文件、目录
     /// </summary>
     /// <param name="files"></param>
-    public async Task AskUploadFilesAsync(IEnumerable<IStorageItem> files)
+    public void AskUploadFiles(IEnumerable<IStorageItem> files)
     {
-        List<string> itemNames = new();
+        var itemList = AskUploadVm.LocalItemList;
+        itemList.Clear();
+        List<IStorageFile> fileList = new();
+        List<IStorageFolder> dirList = new();
         foreach (var item in files)
         {
             if (item is IStorageFile file)
             {
-                itemNames.Add("文件: " + file.Name);
+                itemList.Add(new(file.Name, true));
+                fileList.Add(file);
             }
             else if (item is IStorageFolder folder)
             {
-                itemNames.Add("文件夹: " + folder.Name);
+                itemList.Add(new(folder.Name, false));
+                dirList.Add(folder);
             }
         }
-        //todo
-        //DebugText = string.Join('\n', itemNames);
-        await Task.Delay(100);
-        throw new NotImplementedException();
+        AskUploadVm.CompleteAction = () =>
+        {
+            ShowModal = false;
+            if (AskUploadVm.Confirm)
+            {
+                ShowModal = true;
+                UploadListVm.ShowModal = true;
+                UploadListVm.CompleteAction = () =>
+                {
+                    ShowModal = false;
+                };
+                _ = Task.Run(async () => await AddUploadTaskAsync(currentDirId, fileList, dirList));
+            }
+        };
+        if (itemList.Count > 0)
+        {
+            ShowModal = true;
+            AskUploadVm.ShowModal = true;
+        }
     }
+
+    private async Task AddUploadTaskAsync(long parentDirID, List<IStorageFile> fileList, List<IStorageFolder> dirList)
+    {
+        AddUploadFilelistTask(parentDirID, fileList);
+        await AddUploadDirlistTaskAsync(parentDirID, dirList);
+    }
+
+    private void AddUploadFilelistTask(long parentDirID, List<IStorageFile> fileList)
+    {
+        foreach (var file in fileList)
+        {
+            var uploadTask = new UploadFileItem(parentDirID, file);
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                UploadListVm.TaskList.Add(uploadTask);
+            });
+        }
+    }
+
+    private async Task AddUploadDirlistTaskAsync(long parentDirID, List<IStorageFolder> dirList)
+    {
+        foreach (var dirInfo in dirList)
+        {
+            await AddUploadDirTaskAsync(parentDirID, dirInfo);
+        }
+    }
+
+    private async Task AddUploadDirTaskAsync(long parentDirID, IStorageFolder dirInfo)
+    {
+        if (database is null)
+        {
+            return;
+        }
+        //判断文件夹是否存在
+        var dirName = dirInfo.Name;
+        var dbDirInfo = await database.GetFileInfoAsync(parentDirID, dirName);
+        if (dbDirInfo is null)
+        {
+            //创建文件夹
+            dbDirInfo = new StorageFile(dirName)
+            {
+                ParentID = parentDirID,
+                ItemType = FileType.Dir,
+                Name = dirName,
+            };
+            dbDirInfo.SyncTime();
+            await database.InsertFileLog(dbDirInfo);
+            //刷新列表
+            if (parentDirID == currentDirId)
+            {
+                Dispatcher.UIThread.Invoke(() =>
+                {
+                    RefreshAction();
+                });
+            }
+        }
+        var itemParentDirID = dbDirInfo.ID;
+        List<IStorageFile> subFileList = new();
+        List<IStorageFolder> subDirList = new();
+        var itemList = dirInfo.GetItemsAsync();
+        await foreach (var item in itemList)
+        {
+            if (item is IStorageFile subFile)
+            {
+                subFileList.Add(subFile);
+            }
+            else if (item is IStorageFolder subDir)
+            {
+                subDirList.Add(subDir);
+            }
+        }
+
+        AddUploadFilelistTask(itemParentDirID, subFileList);
+        await AddUploadDirlistTaskAsync(itemParentDirID, subDirList);
+    }
+
 
     /// <summary>
     /// 打开文件夹或者获取文件地址
@@ -166,7 +266,6 @@ public class MainWindowViewModel : ViewModelBase
         AskStringVm.InputText = string.Empty;
         AskStringVm.CompleteAction = () =>
         {
-            AskStringVm.ShowModal = false;
             ShowModal = false;
             if (AskStringVm.Confirm)
             {

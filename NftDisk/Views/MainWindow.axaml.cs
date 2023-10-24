@@ -34,7 +34,7 @@ public partial class MainWindow : Window
         this.Find<DataGrid>("MainGrid")?.AddHandler(DragDrop.DropEvent, ProcessDrop);
     }
 
-    private async void ProcessDrop(object? sender, DragEventArgs eventArgs)
+    private void ProcessDrop(object? sender, DragEventArgs eventArgs)
     {
         
         if (DataContext is not MainWindowViewModel viewModel)
@@ -48,7 +48,7 @@ public partial class MainWindow : Window
             {
                 return;
             }
-            await viewModel.AskUploadFilesAsync(files);
+            viewModel.AskUploadFiles(files);
         }
     }
 }

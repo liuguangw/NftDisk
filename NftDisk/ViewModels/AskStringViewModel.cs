@@ -66,12 +66,14 @@ public class AskStringViewModel : ViewModelBase
     private void ProcessConfirmAction()
     {
         _confirm = true;
+        ShowModal = false;
         _completeAction?.Invoke();
     }
 
     private void ProcessCancelAction()
     {
         _confirm = false;
+        ShowModal = false;
         _completeAction?.Invoke();
     }
 }

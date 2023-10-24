@@ -8,7 +8,7 @@ namespace Liuguang.NftDisk.ViewModels;
 
 public class FileItem : ViewModelBase
 {
-    const string ICON_PATH_PREFIX = "avares://NftDisk/Assets/icons";
+    public const string ICON_PATH_PREFIX = "avares://NftDisk/Assets/icons";
     #region Fields
     private long id = 0;
     private FileType itemType = FileType.File;

@@ -20,7 +20,6 @@ public class UploadFileItem : ViewModelBase
     private readonly long folderID;
     private readonly IStorageFile sourceFile;
     private readonly string localFilePath;
-    private readonly string fileName;
     private readonly long fileSize;
 
     private string cid = string.Empty;
@@ -109,12 +108,14 @@ public class UploadFileItem : ViewModelBase
         }
     }
 
+    public string FileName => sourceFile.Name;
+    public string LocalPath => sourceFile.Path.LocalPath;
+
     public UploadFileItem(long folderID, IStorageFile file)
     {
         this.folderID = folderID;
         sourceFile = file;
         localFilePath = file.Path.LocalPath;
-        fileName = file.Name;
         var fileInfo = new FileInfo(localFilePath);
         fileSize = fileInfo.Length;
         //分块大小

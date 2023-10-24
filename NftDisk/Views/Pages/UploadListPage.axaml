@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Liuguang.NftDisk.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="225"
+             x:Class="Liuguang.NftDisk.Views.Pages.UploadListPage"
+             x:DataType="vm:UploadListViewModel" x:CompileBindings="False">
+  <DockPanel Background="White">
+      <Grid DockPanel.Dock="Top" Classes="page_header" RowDefinitions="*" ColumnDefinitions="*,36">
+        <Panel Grid.Column="0">
+          <TextBlock Text="上传任务列表"/>
+        </Panel>
+        <Button Grid.Column="1" ToolTip.Tip="关闭" Command="{Binding CancelCommand}">
+            <Image Source="/Assets/icons/close.png"/>
+        </Button>
+      </Grid>
+      <Panel DockPanel.Dock="Bottom" Margin="5">
+        <StackPanel Height="260" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="5">
+          <DataGrid Height="260" ItemsSource="{Binding TaskList}" Margin="8,0,8,5"
+                    Name="MainGrid" DragDrop.AllowDrop="True"
+                    IsReadOnly="True"
+                    CanUserReorderColumns="True" CanUserResizeColumns="True" CanUserSortColumns="False"
+                    GridLinesVisibility="All"
+                    BorderThickness="1" BorderBrush="Gray">
+                <DataGrid.Columns>
+                  <DataGridTemplateColumn Header="文件名" Width="210">
+                      <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                                <TextBlock Margin="5" HorizontalAlignment="Left" VerticalAlignment="Center" 
+                                        Text="{Binding FileName}" ToolTip.Tip="{Binding LocalPath}"/>
+                        </DataTemplate>
+                      </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+                  <DataGridTextColumn Header="大小" Width="90"
+                            Binding="{Binding FileSize}" />
+                  <DataGridTextColumn Header="状态" Width="*"
+                            Binding="{Binding StatusText}" />
+                </DataGrid.Columns>
+          </DataGrid>
+        </StackPanel>
+        <WrapPanel HorizontalAlignment="Right" VerticalAlignment="Bottom">
+          <Button Content="取消" Command="{Binding CancelCommand}" Margin="0,0,8,0"/>
+          <Button Content="确定" Command="{Binding ConfirmCommand}"/>
+        </WrapPanel>
+      </Panel>
+  </DockPanel>
+</UserControl>

@@ -164,6 +164,12 @@ public sealed class StorageDatabase
         return fullPath.ToString();
     }
 
+    /// <summary>
+    /// 根据ID获取文件夹或者目录的信息
+    /// </summary>
+    /// <param name="pathID"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
     public async Task<StorageFile?> GetFileInfoAsync(long pathID)
     {
         if (connection is null)
@@ -176,6 +182,55 @@ public sealed class StorageDatabase
         }
         var command = connection.CreateCommand();
         command.CommandText = $"SELECT *FROM files WHERE id={pathID}";
+        using var reader = await command.ExecuteReaderAsync();
+        StorageFile? file = null;
+        if (reader.Read())
+        {
+            var itemID = reader.GetInt64("id");
+            var parentID = reader.GetInt64("parent_id");
+            var itemName = reader.GetString("name");
+            var uploadTime = reader.GetInt64("upload_time");
+            var fType = reader.GetInt32("item_type");
+            file = new StorageFile(itemName)
+            {
+                ID = itemID,
+                ParentID = parentID,
+                UploadTime = uploadTime
+            };
+            //目录
+            if (fType == 0)
+            {
+                file.ItemType = FileType.Dir;
+            }
+            //文件
+            else if (fType == 1)
+            {
+                var cid = reader.GetString("cid");
+                var size = reader.GetInt64("size");
+                file.CID = cid;
+                file.Size = size;
+            }
+        }
+        return file;
+    }
+
+    /// <summary>
+    /// 获取某个目录下的指定文件或者目录的信息
+    /// </summary>
+    /// <param name="pathID"></param>
+    /// <param name="name"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    public async Task<StorageFile?> GetFileInfoAsync(long pathID, string name)
+    {
+        if (connection is null)
+        {
+            throw new Exception("database error, connection is null");
+        }
+        var command = connection.CreateCommand();
+        command.CommandText = $"SELECT * FROM files WHERE parent_id=$parent_id AND name=$name";
+        command.Parameters.AddWithValue("$parent_id", pathID);
+        command.Parameters.AddWithValue("$name", name);
         using var reader = await command.ExecuteReaderAsync();
         StorageFile? file = null;
         if (reader.Read())
@@ -240,5 +295,14 @@ public sealed class StorageDatabase
         command.Parameters.AddWithValue("$size", fileLog.Size);
         command.Parameters.AddWithValue("$upload_time", fileLog.UploadTime);
         await command.ExecuteNonQueryAsync();
+        //last insert id
+        command = connection.CreateCommand();
+        command.CommandText = "SELECT last_insert_rowid() AS last_id";
+        using var reader = await command.ExecuteReaderAsync();
+        if (reader.Read())
+        {
+            var itemID = reader.GetInt64("last_id");
+            fileLog.ID = itemID;
+        }
     }
 }

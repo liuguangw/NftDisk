@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Liuguang.NftDisk.ViewModels"
-        xmlns:pages="using:Liuguang.NftDisk.Pages"
+        xmlns:pages="using:Liuguang.NftDisk.Views.Pages"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
@@ -9,7 +9,6 @@
         x:DataType="vm:MainWindowViewModel" x:CompileBindings="False"
         Icon="/Assets/logo.ico"
         Title="NftDisk">
-
     <Design.DataContext>
         <!-- This only sets the DataContext for the previewer in an IDE,
              to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
@@ -116,6 +115,10 @@
         <Rectangle Fill="Black" Opacity="0.5" IsVisible="{Binding ShowModal}" />
         <pages:AskStringPage Width="360" Height="240" HorizontalAlignment="Center" VerticalAlignment="Center"
             DataContext="{Binding AskStringVm}" IsVisible="{Binding ShowModal}" />
+        <pages:AskUploadPage Width="420" Height="360" HorizontalAlignment="Center" VerticalAlignment="Center"
+            DataContext="{Binding AskUploadVm}" IsVisible="{Binding ShowModal}" />
+        <pages:UploadListPage Width="500" Height="360" HorizontalAlignment="Center" VerticalAlignment="Center"
+            DataContext="{Binding UploadListVm}" IsVisible="{Binding ShowModal}" />
     </Panel>
 
 </Window>

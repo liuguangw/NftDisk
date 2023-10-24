@@ -4,22 +4,34 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:Liuguang.NftDisk.ViewModels"
              mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="225"
-             x:Class="Liuguang.NftDisk.Pages.AskStringPage"
-             x:DataType="vm:AskStringViewModel" x:CompileBindings="False">
+             x:Class="Liuguang.NftDisk.Views.Pages.AskUploadPage"
+             x:DataType="vm:AskUploadViewModel" x:CompileBindings="False">
   <DockPanel Background="White">
       <Grid DockPanel.Dock="Top" Classes="page_header" RowDefinitions="*" ColumnDefinitions="*,36">
         <Panel Grid.Column="0">
-          <TextBlock Text="{Binding Title}"/>
+          <TextBlock Text="上传文件"/>
         </Panel>
         <Button Grid.Column="1" ToolTip.Tip="关闭" Command="{Binding CancelCommand}">
             <Image Source="/Assets/icons/close.png"/>
         </Button>
       </Grid>
       <Panel DockPanel.Dock="Bottom" Margin="5">
-        <WrapPanel HorizontalAlignment="Center" Margin="0,25">
-          <TextBlock Text="{Binding Label}" VerticalAlignment="Center"/>
-          <TextBox Text="{Binding InputText}" Watermark="{Binding Watermark}" Margin="10,0" VerticalAlignment="Center" MinWidth="200"/>
-        </WrapPanel>
+        <StackPanel Height="260" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="5">
+          <TextBlock Text="将上传以下文件或目录" VerticalAlignment="Center"/>
+          <ScrollViewer Height="240">
+            <ItemsControl ItemsSource="{Binding LocalItemList}" >
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <WrapPanel>
+                      <Image Height="40" VerticalAlignment="Center" Source="{Binding IconSource}"/>
+                      <TextBlock Margin="5" HorizontalAlignment="Left" VerticalAlignment="Center" 
+                              Text="{Binding Name}"/>
+                  </WrapPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </StackPanel>
         <WrapPanel HorizontalAlignment="Right" VerticalAlignment="Bottom">
           <Button Content="取消" Command="{Binding CancelCommand}" Margin="0,0,8,0"/>
           <Button Content="确定" Command="{Binding ConfirmCommand}"/>
