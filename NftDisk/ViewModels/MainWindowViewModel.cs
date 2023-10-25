@@ -5,6 +5,7 @@ using System.Reactive;
 using System.Threading.Tasks;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Liuguang.NftDisk.Config;
 using Liuguang.Storage;
 using ReactiveUI;
 
@@ -38,6 +39,7 @@ public class MainWindowViewModel : ViewModelBase
 
     public AskUploadViewModel AskUploadVm { get; } = new();
     public UploadListViewModel UploadListVm { get; } = new();
+    public SettingViewModel SettingVm { get; } = new();
     public ReactiveCommand<FileItem, Unit> OpenDirOrShowFileLinksCommand { get; }
     public ReactiveCommand<Unit, Unit> GotoUpFolderCommand { get; }
     public bool CanGotoUpFolder => currentDirId != 0;
@@ -52,14 +54,20 @@ public class MainWindowViewModel : ViewModelBase
     }
     public async Task OnLoadAsync()
     {
-
         if (database is null)
         {
             database = new StorageDatabase("./data/storage.db");
             await database.OpenAsync();
         }
         await LoadFileListAsync();
+        await LoadConfigAsync();
         _ = Task.Run(() => UploadListVm.StartUploadListAsync());
+    }
+
+    private static async Task LoadConfigAsync()
+    {
+        await ApiTokenConfig.LoadAsync(ApiTokenConfig.DEFAULT_PATH);
+        await GatewayConfig.LoadAsync(GatewayConfig.DEFAULT_PATH);
     }
 
     private async Task LoadFileListAsync()
@@ -128,7 +136,10 @@ public class MainWindowViewModel : ViewModelBase
             ShowModal = false;
             if (AskUploadVm.Confirm)
             {
-                ShowTaskList();
+                if (!UploadListVm.ShowModal)
+                {
+                    UploadListVm.ShowDialog();
+                }
                 Task.Run(() => AddUploadTaskAsync(currentDirId, fileList, dirList));
             }
         };
@@ -307,29 +318,25 @@ public class MainWindowViewModel : ViewModelBase
     {
         if (UploadListVm.ShowModal)
         {
-            await HideTaskListAsync();
+            await UploadListVm.HideDialogAsync();
         }
         else
         {
-            ShowTaskList();
+            UploadListVm.ShowDialog();
         }
     }
 
-    private void ShowTaskList()
+    /// <summary>
+    /// 打开设置界面
+    /// </summary>
+    public void ShowSettingAction()
     {
-        UploadListVm.ShowModal = true;
-        UploadListVm.IsStyleHidden = false;
-        UploadListVm.CompleteAction = async () =>
+        SettingVm.CompleteAction = () =>
         {
-            await HideTaskListAsync();
+            ShowModal = false;
         };
-    }
-
-    private async Task HideTaskListAsync()
-    {
-        UploadListVm.IsStyleHidden = true;
-        await Task.Delay(200);
-        UploadListVm.ShowModal = false;
+        ShowModal = true;
+        SettingVm.ShowDialog();
     }
 
     private async void ProcessFileUploadSuccess(UploadFileItem item)

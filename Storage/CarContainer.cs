@@ -64,14 +64,14 @@ public class CarContainer
         return nodeSize;
     }
 
-    private async Task<PBNode> ReadNodeAsync(long nodeIndex)
+    private async Task<PBNode> ReadNodeAsync(long nodeIndex, CancellationToken cancelToken)
     {
         var offset = nodeIndex * NODE_MAX_SIZE;
         var nodeSize = NodeContentLength(nodeIndex);
         var buffer = new byte[nodeSize];
         //seek
         stream.Seek(offset, SeekOrigin.Begin);
-        await stream.ReadAsync(buffer);
+        await stream.ReadAsync(buffer, cancelToken);
         var unixfsData = new UnixFsData()
         {
             Type = UnixFsData.Types.DataType.File,
@@ -117,7 +117,7 @@ public class CarContainer
         return (int)count;
     }
 
-    private async Task WriteCarHeadAsync(Stream outputStream, byte[] cid)
+    private async Task WriteCarHeadAsync(Stream outputStream, byte[] cid, CancellationToken cancelToken)
     {
         var part = new byte[]{
             0x38,//总长度
@@ -129,37 +129,37 @@ public class CarContainer
             0x58, 0x23,//bytes(35)
             0x0,//cid前缀
         };
-        await outputStream.WriteAsync(part);
-        await outputStream.WriteAsync(cid);
+        await outputStream.WriteAsync(part, cancelToken);
+        await outputStream.WriteAsync(cid, cancelToken);
         var part1 = new byte[]{
             0x67,//text(7),
             0x76,0x65,0x72,0x73,0x69,0x6F,0x6E,//version
             0x1, //unsigned(1)
         };
-        await outputStream.WriteAsync(part1);
+        await outputStream.WriteAsync(part1, cancelToken);
     }
 
-    public async Task<byte[]> RunCarTaskAsync(Stream outputStream, int taskIndex)
+    public async Task<byte[]> RunCarTaskAsync(Stream outputStream, int taskIndex, CancellationToken cancelToken)
     {
         if (fileSize <= NODE_MAX_SIZE)
         {
             // [0 - 256KB]
-            return await RunCarTaskV0Async(outputStream);
+            return await RunCarTaskV0Async(outputStream, cancelToken);
         }
         else if (fileSize > NODE_MAX_SIZE && fileSize <= (LINK_NODE_MAX_COUNT * NODE_MAX_SIZE))
         {
             // (256KB - 43.5MB]
-            return await RunCarTaskV1Async(outputStream);
+            return await RunCarTaskV1Async(outputStream, cancelToken);
         }
         else if (fileSize > (LINK_NODE_MAX_COUNT * NODE_MAX_SIZE) && fileSize <= (TASK_LINK_MAX_COUNT * LINK_NODE_MAX_COUNT * NODE_MAX_SIZE))
         {
             // (43.5MB - 87MB]
-            return await RunCarTaskV2Async(outputStream);
+            return await RunCarTaskV2Async(outputStream, cancelToken);
         }
         else if (fileSize > TASK_LINK_MAX_COUNT * LINK_NODE_MAX_COUNT * NODE_MAX_SIZE)
         {
             // (87MB - ?]
-            return await RunCarTaskV3Async(outputStream, taskIndex);
+            return await RunCarTaskV3Async(outputStream, taskIndex, cancelToken);
         }
         else
         {
@@ -167,19 +167,19 @@ public class CarContainer
         }
     }
 
-    private async Task<(byte[], int)> WritePbNodeAsync(Stream outputStream, PBNode pbNode, bool writeHead = false)
+    private async Task<(byte[], int)> WritePbNodeAsync(Stream outputStream, PBNode pbNode, bool writeHead = false, CancellationToken cancelToken = default)
     {
         var (cid, data) = PackNode(pbNode);
         if (writeHead)
         {
-            await WriteCarHeadAsync(outputStream, cid);
+            await WriteCarHeadAsync(outputStream, cid, cancelToken);
         }
         var fLength = cid.Length + data.Length;
         //varint
         var varintData = Varint.ToUvarint((ulong)fLength);
-        await outputStream.WriteAsync(varintData);
-        await outputStream.WriteAsync(cid);
-        await outputStream.WriteAsync(data);
+        await outputStream.WriteAsync(varintData, cancelToken);
+        await outputStream.WriteAsync(cid, cancelToken);
+        await outputStream.WriteAsync(data, cancelToken);
         return (cid, data.Length);
     }
 
@@ -188,10 +188,10 @@ public class CarContainer
     /// </summary>
     /// <param name="outputStream"></param>
     /// <returns></returns>
-    private async Task<byte[]> RunCarTaskV0Async(Stream outputStream)
+    private async Task<byte[]> RunCarTaskV0Async(Stream outputStream, CancellationToken cancelToken)
     {
-        var pbNode = await ReadNodeAsync(0);
-        var result = await WritePbNodeAsync(outputStream, pbNode, true);
+        var pbNode = await ReadNodeAsync(0, cancelToken);
+        var result = await WritePbNodeAsync(outputStream, pbNode, true, cancelToken);
         return result.Item1;
     }
 
@@ -202,7 +202,7 @@ public class CarContainer
     /// <param name="linkIndex">link序号</param>
     /// <param name="writeHead">是否写入car head头</param>
     /// <returns></returns>
-    private async Task<(byte[], long)> WriteLinkAsync(Stream outputStream, int linkIndex, bool writeHead)
+    private async Task<(byte[], long)> WriteLinkAsync(Stream outputStream, int linkIndex, bool writeHead, CancellationToken cancelToken)
     {
         var nodeIndex = linkIndex * LINK_NODE_MAX_COUNT;
         var nodeTotalCount = AllNodeCount();
@@ -219,8 +219,8 @@ public class CarContainer
         for (var i = 0; i < loopCount; i++)
         {
             //Console.WriteLine("node:{0}",nodeIndex);
-            var pbNode = await ReadNodeAsync(nodeIndex);
-            var (cid, dataLength) = await WritePbNodeAsync(memStream, pbNode);
+            var pbNode = await ReadNodeAsync(nodeIndex, cancelToken);
+            var (cid, dataLength) = await WritePbNodeAsync(memStream, pbNode, cancelToken: cancelToken);
             totalDataLength += dataLength;
             //add links
             linkPbNode.Links.Add(new PBLink()
@@ -235,11 +235,11 @@ public class CarContainer
             nodeIndex++;
         }
         linkPbNode.Data = linkUnixFsData.ToByteString();
-        var (linkCid, linkDataLength) = await WritePbNodeAsync(outputStream, linkPbNode, writeHead);
+        var (linkCid, linkDataLength) = await WritePbNodeAsync(outputStream, linkPbNode, writeHead, cancelToken);
         totalDataLength += linkDataLength;
         memStream.Seek(0, SeekOrigin.Begin);
-        await memStream.CopyToAsync(outputStream);
-        await outputStream.FlushAsync();
+        await memStream.CopyToAsync(outputStream, cancelToken);
+        await outputStream.FlushAsync(cancelToken);
         return (linkCid, totalDataLength);
     }
 
@@ -249,9 +249,9 @@ public class CarContainer
     /// <param name="outputStream"></param>
     /// <returns></returns>
     /// <exception cref="NotImplementedException"></exception>
-    private async Task<byte[]> RunCarTaskV1Async(Stream outputStream)
+    private async Task<byte[]> RunCarTaskV1Async(Stream outputStream, CancellationToken cancelToken)
     {
-        var result = await WriteLinkAsync(outputStream, 0, true);
+        var result = await WriteLinkAsync(outputStream, 0, true, cancelToken);
         return result.Item1;
     }
 
@@ -261,11 +261,11 @@ public class CarContainer
     /// <param name="outputStream"></param>
     /// <returns></returns>
     /// <exception cref="NotImplementedException"></exception>
-    private async Task<byte[]> RunCarTaskV2Async(Stream outputStream)
+    private async Task<byte[]> RunCarTaskV2Async(Stream outputStream, CancellationToken cancelToken)
     {
         using var memStream = new MemoryStream();
-        var (cid1, dataLength1) = await WriteLinkAsync(memStream, 0, false);
-        var (cid2, dataLength2) = await WriteLinkAsync(memStream, 1, false);
+        var (cid1, dataLength1) = await WriteLinkAsync(memStream, 0, false, cancelToken);
+        var (cid2, dataLength2) = await WriteLinkAsync(memStream, 1, false, cancelToken);
         var contentLength1 = NODE_MAX_SIZE * LINK_NODE_MAX_COUNT;
         long contentLength2 = contentLength1;
         if (contentLength1 * 2 > fileSize)
@@ -295,10 +295,10 @@ public class CarContainer
         rootUnixFsData.Blocksizes.Add((ulong)contentLength2);
         //
         rootPbNode.Data = rootUnixFsData.ToByteString();
-        var result = await WritePbNodeAsync(outputStream, rootPbNode, true);
+        var result = await WritePbNodeAsync(outputStream, rootPbNode, true, cancelToken);
         memStream.Seek(0, SeekOrigin.Begin);
-        await memStream.CopyToAsync(outputStream);
-        await outputStream.FlushAsync();
+        await memStream.CopyToAsync(outputStream, cancelToken);
+        await outputStream.FlushAsync(cancelToken);
         return result.Item1;
     }
     /// <summary>
@@ -307,7 +307,7 @@ public class CarContainer
     /// <param name="outputStream"></param>
     /// <returns></returns>
     /// <exception cref="NotImplementedException"></exception>
-    private async Task<byte[]> RunCarTaskV3Async(Stream outputStream, int taskIndex)
+    private async Task<byte[]> RunCarTaskV3Async(Stream outputStream, int taskIndex, CancellationToken cancelToken)
     {
         var rootPbNode = new PBNode();
         var rootUnixFsData = new UnixFsData()
@@ -330,7 +330,7 @@ public class CarContainer
                 for (var j = 0; j < TASK_LINK_MAX_COUNT; j++)
                 {
 
-                    var (cid, dataLength) = await WriteLinkAsync(memStream, linkIndex, false);
+                    var (cid, dataLength) = await WriteLinkAsync(memStream, linkIndex, false, cancelToken);
                     linkIndex++;
                     nodeTotalCount -= LINK_NODE_MAX_COUNT;
                     if (nodeTotalCount <= 0)
@@ -356,16 +356,16 @@ public class CarContainer
                 if (i == taskIndex)
                 {
                     memStream.Seek(0, SeekOrigin.Begin);
-                    await memStream.CopyToAsync(sStream);
+                    await memStream.CopyToAsync(sStream, cancelToken);
                 }
             }
         }
         //
         rootPbNode.Data = rootUnixFsData.ToByteString();
-        var result = await WritePbNodeAsync(outputStream, rootPbNode, true);
+        var result = await WritePbNodeAsync(outputStream, rootPbNode, true, cancelToken);
         sStream.Seek(0, SeekOrigin.Begin);
-        await sStream.CopyToAsync(outputStream);
-        await outputStream.FlushAsync();
+        await sStream.CopyToAsync(outputStream, cancelToken);
+        await outputStream.FlushAsync(cancelToken);
         return result.Item1;
     }
 }

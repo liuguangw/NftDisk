@@ -1,11 +1,15 @@
 using System;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Liuguang.NftDisk.Common;
 using Liuguang.Storage;
 using ReactiveUI;
 
 namespace Liuguang.NftDisk.ViewModels;
 
+/// <summary>
+/// 列表展示的文件或者目录
+/// </summary>
 public class FileItem : ViewModelBase
 {
     public const string ICON_PATH_PREFIX = "avares://NftDisk/Assets/icons";
@@ -22,7 +26,7 @@ public class FileItem : ViewModelBase
     public long ID => id;
     public long ParentID { get; set; } = 0;
     public FileType ItemType => itemType;
-    
+
     public string Name
     {
         get => name;
@@ -74,43 +78,12 @@ public class FileItem : ViewModelBase
             {
                 return string.Empty;
             }
-            return ParseSize(size);
+            return SizeTool.ParseSize(size);
         }
     }
 
     public string UploadTimeText => ParseUploadTime(uploadTime);
     #endregion
-
-    private static string ParseSize(long sizeValue)
-    {
-        const long KB = 1024;
-        const long MB = 1024 * KB;
-        const long GB = 1024 * MB;
-        if (sizeValue < 0)
-        {
-            //出错了
-            return "?";
-        }
-        else if (sizeValue >= 0 && sizeValue < KB)
-        {
-            return $"{sizeValue} B";
-        }
-        else if (sizeValue >= KB && sizeValue < MB)
-        {
-            double v = (double)sizeValue / KB;
-            return $"{v:N2} KB";
-        }
-        else if (sizeValue >= MB && sizeValue < GB)
-        {
-            double v = (double)sizeValue / MB;
-            return $"{v:N2} MB";
-        }
-        else
-        {
-            double v = (double)sizeValue / GB;
-            return $"{v:N2} GB";
-        }
-    }
 
     private static string ParseUploadTime(long uploadTime)
     {

@@ -34,7 +34,7 @@
                     <Button Classes="icon" Grid.Column="5" ToolTip.Tip="上传数据库">
                         <Image Source="/Assets/icons/database_sync.png"/>
                     </Button>
-                    <Button Classes="icon" Grid.Column="6" ToolTip.Tip="设置" Margin="0,5">
+                    <Button Classes="icon" Grid.Column="6" ToolTip.Tip="设置" Command="{Binding ShowSettingAction}" Margin="0,5">
                         <Image Source="/Assets/icons/setting.png"/>
                     </Button>
                 </Grid>
@@ -119,6 +119,8 @@
             DataContext="{Binding AskStringVm}" IsVisible="{Binding ShowModal}" />
         <pages:AskUploadPage Width="420" Height="360" HorizontalAlignment="Center" VerticalAlignment="Center"
             DataContext="{Binding AskUploadVm}" IsVisible="{Binding ShowModal}" />
+        <pages:SettingPage Width="500" Height="480" HorizontalAlignment="Center" VerticalAlignment="Center"
+            DataContext="{Binding SettingVm}" IsVisible="{Binding ShowModal}" />
     </Panel>
 
 </Window>

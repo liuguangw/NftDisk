@@ -1,4 +1,5 @@
 [Bb]in/
 [Oo]bj/
-data/
+**/data/**
+!**/data/gateway.json
 /.vscode

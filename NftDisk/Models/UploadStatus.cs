@@ -11,5 +11,7 @@ public enum UploadStatus
     //上传成功
     Success,
     //上传失败
-    Failed
+    Failed,
+    //被手动停止
+    Stopped,
 }

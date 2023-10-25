@@ -2,7 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Reactive;
+using System.Threading;
 using System.Threading.Tasks;
+using DynamicData;
+using Liuguang.NftDisk.Config;
 using Liuguang.NftDisk.Models;
 using ReactiveUI;
 
@@ -14,10 +17,7 @@ public class UploadListViewModel : ViewModelBase
     public ObservableCollection<UploadFileItem> TaskList => _taskList;
     private List<UploadFileItem> _activeTaskList = new();
     private bool _stopped = true;
-    private string _token = string.Empty;
     private bool _showModal = false;
-    private bool _confirm = false;
-    private Action? _completeAction = null;
     private Action<UploadFileItem>? _uploadSuccessAction = null;
 
     private bool _isStyleHidden = true;
@@ -31,33 +31,27 @@ public class UploadListViewModel : ViewModelBase
     public bool ShowModal
     {
         get => _showModal;
-        set => this.RaiseAndSetIfChanged(ref _showModal, value);
+        private set => this.RaiseAndSetIfChanged(ref _showModal, value);
     }
 
-    public bool Confirm => _confirm;
-
-    public Action CompleteAction { set => _completeAction = value; }
     public Action<UploadFileItem> UploadSuccessAction { set => _uploadSuccessAction = value; }
-    public ReactiveCommand<Unit, Unit> ConfirmCommand { get; }
-    public ReactiveCommand<Unit, Unit> CancelCommand { get; }
 
-    public UploadListViewModel()
+    public void ShowDialog()
     {
-        ConfirmCommand = ReactiveCommand.Create(ProcessConfirmAction);
-        CancelCommand = ReactiveCommand.Create(ProcessCancelAction);
-        _token = "123456";
+        ShowModal = true;
+        IsStyleHidden = false;
     }
 
-    private void ProcessConfirmAction()
+    public async Task HideDialogAsync()
     {
-        _confirm = true;
-        _completeAction?.Invoke();
+        IsStyleHidden = true;
+        await Task.Delay(200);
+        ShowModal = false;
     }
 
-    private void ProcessCancelAction()
+    public async void CloseAction()
     {
-        _confirm = false;
-        _completeAction?.Invoke();
+        await HideDialogAsync();
     }
 
     public void Stop()
@@ -74,8 +68,8 @@ public class UploadListViewModel : ViewModelBase
             var toRemoveList = new List<UploadFileItem>();
             foreach (var taskInfo in _activeTaskList)
             {
-                //从激活的任务列表中删除已经完成的任务
-                if (taskInfo.Status == UploadStatus.Success || taskInfo.Status == UploadStatus.Failed)
+                //从激活的任务列表中删除已经完成的任务或者停止的任务
+                if (taskInfo.Status == UploadStatus.Success || taskInfo.Status == UploadStatus.Failed || taskInfo.Status == UploadStatus.Stopped)
                 {
                     toRemoveList.Add(taskInfo);
                 }
@@ -86,10 +80,7 @@ public class UploadListViewModel : ViewModelBase
             }
             if (toRemoveList.Count > 0)
             {
-                foreach (var item in toRemoveList)
-                {
-                    _activeTaskList.Remove(item);
-                }
+                _activeTaskList.RemoveMany(toRemoveList);
             }
             //需要添加任务
             if (activeTaskCount < MAX_ACTIVE_TASK_COUNT)
@@ -120,10 +111,61 @@ public class UploadListViewModel : ViewModelBase
 
     private async Task UploadFileAsync(UploadFileItem taskInfo)
     {
-        await taskInfo.UploadAsync(_token);
+        await taskInfo.UploadAsync(ApiTokenConfig.Instance.Token);
         if (taskInfo.Status == UploadStatus.Success)
         {
             _uploadSuccessAction?.Invoke(taskInfo);
         }
+    }
+
+    public void CancelAllAction()
+    {
+        foreach (var item in _taskList)
+        {
+            if (item.Status == UploadStatus.Uploading || item.Status == UploadStatus.WaitResponse)
+            {
+                if (item.CancelSource != null)
+                {
+                    item.CancelSource.Cancel();
+                }
+            }
+            else if (item.Status == UploadStatus.Pending)
+            {
+                item.Status = UploadStatus.Stopped;
+            }
+        }
+    }
+
+    public void ResumeAllAction()
+    {
+        foreach (var item in _taskList)
+        {
+            if (item.Status == UploadStatus.Stopped || item.Status == UploadStatus.Failed)
+            {
+                item.Status = UploadStatus.Pending;
+            }
+        }
+    }
+
+    public void ClearSuccessAction()
+    {
+        var toDeleteList = new List<UploadFileItem>();
+        foreach (var item in _taskList)
+        {
+            if (item.Status == UploadStatus.Success)
+            {
+                toDeleteList.Add(item);
+            }
+        }
+        if (toDeleteList.Count > 0)
+        {
+            _taskList.RemoveMany(toDeleteList);
+        }
+    }
+
+    public void ClearAllAction()
+    {
+        CancelAllAction();
+        _taskList.Clear();
     }
 }

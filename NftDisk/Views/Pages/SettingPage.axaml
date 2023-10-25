@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Liuguang.NftDisk.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="225"
+             x:Class="Liuguang.NftDisk.Views.Pages.SettingPage"
+             x:DataType="vm:SettingViewModel" x:CompileBindings="False">
+  <DockPanel Background="White">
+      <Grid DockPanel.Dock="Top" Classes="page_header" RowDefinitions="*" ColumnDefinitions="*,36">
+        <Panel Grid.Column="0">
+          <TextBlock Text="设置"/>
+        </Panel>
+        <Button Grid.Column="1" ToolTip.Tip="关闭" Command="{Binding CancelCommand}">
+            <Image Source="/Assets/icons/close.png"/>
+        </Button>
+      </Grid>
+      <Panel DockPanel.Dock="Bottom" Margin="5">
+        <StackPanel HorizontalAlignment="Stretch" Margin="8,8,8,45">
+          <TextBlock Text="API token" VerticalAlignment="Center"/>
+          <TextBox Text="{Binding TokenText}" Watermark="填写你的api token" Margin="10,0" VerticalAlignment="Center"
+                   AcceptsReturn="False" />
+          <TextBlock Text="Gateway地址" VerticalAlignment="Center" Margin="0,10,0,0"/>
+          <TextBox Text="{Binding GatewayText}" Watermark="填写网关地址,每个一行" Margin="10,0"
+                   Height="290"
+                   AcceptsReturn="True" TextWrapping="Wrap"
+                   VerticalAlignment="Stretch"/>
+        </StackPanel>
+        <WrapPanel HorizontalAlignment="Right" VerticalAlignment="Bottom">
+          <Button Content="取消" Command="{Binding CancelCommand}" Margin="0,0,8,0"/>
+          <Button Content="确定" Command="{Binding ConfirmCommand}"/>
+        </WrapPanel>
+      </Panel>
+  </DockPanel>
+</UserControl>

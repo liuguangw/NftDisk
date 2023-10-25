@@ -3,8 +3,10 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Platform.Storage;
+using Liuguang.NftDisk.Common;
 using Liuguang.NftDisk.Models;
 using Liuguang.Storage;
 using ReactiveUI;
@@ -20,11 +22,12 @@ public class UploadFileItem : ViewModelBase
     private readonly long _folderID;
     private readonly IStorageFile _sourceFile;
     private readonly string localFilePath;
-    private readonly long fileSize;
+    private readonly long _fileSize;
 
     private string cid = string.Empty;
     private string errorMessage = string.Empty;
     private UploadStatus _status = UploadStatus.Pending;
+    private CancellationTokenSource? _cancelSource = null;
     /// <summary>
     /// 文件块的大小列表
     /// </summary>
@@ -43,14 +46,18 @@ public class UploadFileItem : ViewModelBase
     private UploadStatus[] taskPartStatusList;
     #endregion
 
-    public long FileSize => fileSize;
-    public long UploadSize
+    public CancellationTokenSource? CancelSource => _cancelSource;
+
+    public long FileSize => _fileSize;
+
+    public string FileSizeText => SizeTool.ParseSize(_fileSize);
+    private long UploadSize
     {
         get
         {
             if (_status == UploadStatus.Success)
             {
-                return fileSize;
+                return _fileSize;
             }
             long t1Size = 0;
             long t2Size = 0;
@@ -71,7 +78,7 @@ public class UploadFileItem : ViewModelBase
             {
                 return 0;
             }
-            return fileSize * t1Size / t2Size;
+            return _fileSize * t1Size / t2Size;
         }
     }
 
@@ -91,6 +98,7 @@ public class UploadFileItem : ViewModelBase
             if (value != oldStatus)
             {
                 this.RaisePropertyChanged(nameof(StatusText));
+                this.RaisePropertyChanged(nameof(TipText));
             }
         }
 
@@ -107,7 +115,8 @@ public class UploadFileItem : ViewModelBase
                     displayText = "排队中";
                     break;
                 case UploadStatus.Uploading:
-                    displayText = $"上传中({UploadSize}/{FileSize})";
+                    double percent = UploadSize * 100 / (double)_fileSize;
+                    displayText = $"上传中({percent:N2}%)";
                     break;
                 case UploadStatus.WaitResponse:
                     displayText = "等待响应";
@@ -116,10 +125,29 @@ public class UploadFileItem : ViewModelBase
                     displayText = "上传成功";
                     break;
                 case UploadStatus.Failed:
-                    displayText = "上传失败:" + errorMessage;
+                    displayText = "上传失败";
+                    break;
+                case UploadStatus.Stopped:
+                    displayText = "已停止";
                     break;
             }
             return displayText;
+        }
+    }
+
+    public string TipText
+    {
+        get
+        {
+            if (_status == UploadStatus.Uploading)
+            {
+                return SizeTool.ParseSize(UploadSize) + "/" + FileSizeText;
+            }
+            else if (_status == UploadStatus.Failed)
+            {
+                return errorMessage;
+            }
+            return StatusText;
         }
     }
 
@@ -134,18 +162,18 @@ public class UploadFileItem : ViewModelBase
         _sourceFile = file;
         localFilePath = file.Path.LocalPath;
         var fileInfo = new FileInfo(localFilePath);
-        fileSize = fileInfo.Length;
+        _fileSize = fileInfo.Length;
         //分块大小
         var perSize = CarContainer.FilePartMaxSize();
         int partCount;
-        if (fileSize <= perSize)
+        if (_fileSize <= perSize)
         {
             partCount = 1;
         }
         else
         {
-            partCount = (int)(fileSize / perSize);
-            if (fileSize % perSize != 0)
+            partCount = (int)(_fileSize / perSize);
+            if (_fileSize % perSize != 0)
             {
                 partCount++;
             }
@@ -159,13 +187,13 @@ public class UploadFileItem : ViewModelBase
         {
             if (i == partCount - 1)
             {
-                if (fileSize == 0)
+                if (_fileSize == 0)
                 {
                     filePartSizeList[i] = 0;
                 }
                 else
                 {
-                    filePartSizeList[i] = fileSize % perSize;
+                    filePartSizeList[i] = _fileSize % perSize;
                     if (filePartSizeList[i] == 0)
                     {
                         filePartSizeList[i] = perSize;
@@ -192,11 +220,14 @@ public class UploadFileItem : ViewModelBase
         return client;
     }
 
-    public async Task UploadAsync(string token)
+    public async Task UploadAsync(string apiToken)
     {
+        var cancelSource = new CancellationTokenSource();
+        _cancelSource = cancelSource;
+        var cancelToken = cancelSource.Token;
         using var fileStream = await _sourceFile.OpenReadAsync();
         var container = new CarContainer(fileStream);
-        var HttpClient = CreateHttpClient(token);
+        var HttpClient = CreateHttpClient(apiToken);
         var partCount = container.TaskCount();
         Status = UploadStatus.Uploading;
         bool allSuccess = true;
@@ -210,39 +241,54 @@ public class UploadFileItem : ViewModelBase
             taskPartStatusList[i] = UploadStatus.Uploading;
             try
             {
-                await UploadPartAsync(HttpClient, container, i);
+                await UploadPartAsync(HttpClient, container, i, cancelToken);
                 taskPartStatusList[i] = UploadStatus.Success;
             }
             catch (Exception ex)
             {
-                taskPartStatusList[i] = UploadStatus.Failed;
-                errorMessage = ex.Message;
+                if (cancelToken.IsCancellationRequested)
+                {
+                    taskPartStatusList[i] = UploadStatus.Stopped;
+                    errorMessage = "已取消任务";
+
+                }
+                else
+                {
+                    taskPartStatusList[i] = UploadStatus.Failed;
+                    errorMessage = ex.Message;
+                }
                 allSuccess = false;
                 break;
             }
         }
         //
-        Status = allSuccess ? UploadStatus.Success : UploadStatus.Failed;
+        if (allSuccess)
+        {
+            Status = UploadStatus.Success;
+            return;
+        }
+        Status = cancelToken.IsCancellationRequested ? UploadStatus.Stopped : UploadStatus.Failed;
     }
 
     private void UpdateProgress(int taskIndex, long total, long completed)
     {
         taskPartSizeList[taskIndex] = total;
         taskPartUploadSizeList[taskIndex] = completed;
-        this.RaisePropertyChanged(nameof(UploadSize));
+        this.RaisePropertyChanged(nameof(StatusText));
+        this.RaisePropertyChanged(nameof(TipText));
         if (total == completed)
         {
             Status = UploadStatus.WaitResponse;
         }
     }
 
-    private async Task UploadPartAsync(HttpClient httpClient, CarContainer container, int taskIndex)
+    private async Task UploadPartAsync(HttpClient httpClient, CarContainer container, int taskIndex, CancellationToken cancelToken)
     {
         byte[] cidData;
         byte[] carData;
         using (var memoryStream = new MemoryStream())
         {
-            cidData = await container.RunCarTaskAsync(memoryStream, taskIndex);
+            cidData = await container.RunCarTaskAsync(memoryStream, taskIndex, cancelToken);
             carData = memoryStream.ToArray();
         }
         CID = CidTool.ToV0String(cidData);
@@ -250,7 +296,7 @@ public class UploadFileItem : ViewModelBase
         content.Headers.ContentType = new("application/car");
         taskPartUploadSizeList[taskIndex] = 0;
 
-        var response = await httpClient.PostAsync("/upload", content);
+        var response = await httpClient.PostAsync("/upload", content, cancelToken);
         if (response.StatusCode != HttpStatusCode.OK)
         {
             throw new Exception("http error, " + response.StatusCode.ToString());

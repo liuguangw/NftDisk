@@ -12,7 +12,7 @@
         <Panel Grid.Column="0">
           <TextBlock Text="上传任务列表"/>
         </Panel>
-        <Button Grid.Column="1" ToolTip.Tip="关闭" Command="{Binding CancelCommand}">
+        <Button Grid.Column="1" ToolTip.Tip="关闭" Command="{Binding CloseAction}">
             <Image Source="/Assets/icons/close.png"/>
         </Button>
       </Grid>
@@ -34,15 +34,23 @@
                       </DataGridTemplateColumn.CellTemplate>
                   </DataGridTemplateColumn>
                   <DataGridTextColumn Header="大小" Width="90"
-                            Binding="{Binding FileSize}" />
-                  <DataGridTextColumn Header="状态" Width="*"
-                            Binding="{Binding StatusText}" />
+                            Binding="{Binding FileSizeText}" />
+                  <DataGridTemplateColumn Header="状态" Width="*">
+                      <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                                <TextBlock Margin="5" HorizontalAlignment="Left" VerticalAlignment="Center" 
+                                        Text="{Binding StatusText}" ToolTip.Tip="{Binding TipText}"/>
+                        </DataTemplate>
+                      </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
                 </DataGrid.Columns>
           </DataGrid>
         </Grid>
         <WrapPanel HorizontalAlignment="Right" VerticalAlignment="Bottom">
-          <Button Content="取消" Command="{Binding CancelCommand}" Margin="0,0,8,0"/>
-          <Button Content="确定" Command="{Binding ConfirmCommand}"/>
+          <Button Content="启动" Command="{Binding ResumeAllAction}"  ToolTip.Tip="重新启动所有已停止状态、失败状态的任务" Margin="0,0,8,0"/>
+          <Button Content="停止" Command="{Binding CancelAllAction}"  ToolTip.Tip="停止所有任务" Margin="0,0,8,0"/>
+          <Button Content="清理已完成" Command="{Binding ClearSuccessAction}" ToolTip.Tip="清理成功上传的任务记录" Margin="0,0,8,0"/>
+          <Button Content="清理全部" Command="{Binding ClearAllAction}" ToolTip.Tip="清理所有任务"/>
         </WrapPanel>
       </Panel>
   </DockPanel>
