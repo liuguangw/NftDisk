@@ -22,21 +22,7 @@ public class FileItem : ViewModelBase
     public long ID => id;
     public long ParentID { get; set; } = 0;
     public FileType ItemType => itemType;
-    public string ItemTypeText
-    {
-        get
-        {
-            if (itemType == FileType.Dir)
-            {
-                return "文件夹";
-            }
-            else if (itemType == FileType.File)
-            {
-                return "文件";
-            }
-            return "-";
-        }
-    }
+    
     public string Name
     {
         get => name;

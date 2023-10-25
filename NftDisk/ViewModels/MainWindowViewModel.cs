@@ -48,14 +48,25 @@ public class MainWindowViewModel : ViewModelBase
         OpenDirOrShowFileLinksCommand = ReactiveCommand.Create<FileItem>(OpenDirOrShowFileLinks);
         var canGotoUpFolder = this.WhenAnyValue(item => item.CanGotoUpFolder);
         GotoUpFolderCommand = ReactiveCommand.Create(GotoUpFolderAction, canGotoUpFolder);
+        UploadListVm.UploadSuccessAction = ProcessFileUploadSuccess;
     }
-
-    public async Task LoadFileListAsync()
+    public async Task OnLoadAsync()
     {
+
         if (database is null)
         {
             database = new StorageDatabase("./data/storage.db");
             await database.OpenAsync();
+        }
+        await LoadFileListAsync();
+        _ = Task.Run(() => UploadListVm.StartUploadListAsync());
+    }
+
+    private async Task LoadFileListAsync()
+    {
+        if (database is null)
+        {
+            return;
         }
         var files = await database.GetFileListAsync(currentDirId);
         fileItems.Clear();
@@ -81,6 +92,7 @@ public class MainWindowViewModel : ViewModelBase
 
     public async Task FreeResourceAsync()
     {
+        UploadListVm.Stop();
         if (database is null)
         {
             return;
@@ -117,7 +129,7 @@ public class MainWindowViewModel : ViewModelBase
             if (AskUploadVm.Confirm)
             {
                 ShowTaskList();
-                _ = Task.Run(async () => await AddUploadTaskAsync(currentDirId, fileList, dirList));
+                Task.Run(() => AddUploadTaskAsync(currentDirId, fileList, dirList));
             }
         };
         if (itemList.Count > 0)
@@ -318,5 +330,28 @@ public class MainWindowViewModel : ViewModelBase
         UploadListVm.IsStyleHidden = true;
         await Task.Delay(200);
         UploadListVm.ShowModal = false;
+    }
+
+    private async void ProcessFileUploadSuccess(UploadFileItem item)
+    {
+        if (database is null)
+        {
+            return;
+        }
+        var itemLog = new StorageFile(item.FileName)
+        {
+            ParentID = item.FolderID,
+            CID = item.CID,
+            Size = item.FileSize,
+        };
+        itemLog.SyncTime();
+        await database.InsertFileLog(itemLog);
+        if (item.FolderID == currentDirId)
+        {
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                RefreshAction();
+            });
+        }
     }
 }

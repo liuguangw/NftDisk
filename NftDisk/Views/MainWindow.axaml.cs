@@ -29,7 +29,7 @@ public partial class MainWindow : Window
         FontFamily = FontManager.Current.DefaultFontFamily;
         if (DataContext is MainWindowViewModel viewModel)
         {
-            await viewModel.LoadFileListAsync();
+            await viewModel.OnLoadAsync();
         }
         this.Find<DataGrid>("MainGrid")?.AddHandler(DragDrop.DropEvent, ProcessDrop);
     }

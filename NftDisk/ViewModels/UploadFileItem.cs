@@ -17,8 +17,8 @@ namespace Liuguang.NftDisk.ViewModels;
 public class UploadFileItem : ViewModelBase
 {
     #region Fields
-    private readonly long folderID;
-    private readonly IStorageFile sourceFile;
+    private readonly long _folderID;
+    private readonly IStorageFile _sourceFile;
     private readonly string localFilePath;
     private readonly long fileSize;
 
@@ -78,43 +78,60 @@ public class UploadFileItem : ViewModelBase
     public string CID
     {
         get => cid;
-        set => this.RaiseAndSetIfChanged(ref cid, value);
+        private set => this.RaiseAndSetIfChanged(ref cid, value);
+    }
+
+    public UploadStatus Status
+    {
+        get => _status;
+        set
+        {
+            var oldStatus = _status;
+            this.RaiseAndSetIfChanged(ref _status, value);
+            if (value != oldStatus)
+            {
+                this.RaisePropertyChanged(nameof(StatusText));
+            }
+        }
+
     }
 
     public string StatusText
     {
         get
         {
-            string statusText = "-";
+            string displayText = "-";
             switch (_status)
             {
                 case UploadStatus.Pending:
-                    statusText = "排队中";
+                    displayText = "排队中";
                     break;
                 case UploadStatus.Uploading:
-                    statusText = $"上传中({UploadSize}/{FileSize})";
+                    displayText = $"上传中({UploadSize}/{FileSize})";
                     break;
                 case UploadStatus.WaitResponse:
-                    statusText = "等待响应";
+                    displayText = "等待响应";
                     break;
                 case UploadStatus.Success:
-                    statusText = "上传成功";
+                    displayText = "上传成功";
                     break;
                 case UploadStatus.Failed:
-                    statusText = "上传失败:" + errorMessage;
+                    displayText = "上传失败:" + errorMessage;
                     break;
             }
-            return statusText;
+            return displayText;
         }
     }
 
-    public string FileName => sourceFile.Name;
-    public string LocalPath => sourceFile.Path.LocalPath;
+    public string FileName => _sourceFile.Name;
+    public string LocalPath => _sourceFile.Path.LocalPath;
+
+    public long FolderID => _folderID;
 
     public UploadFileItem(long folderID, IStorageFile file)
     {
-        this.folderID = folderID;
-        sourceFile = file;
+        _folderID = folderID;
+        _sourceFile = file;
         localFilePath = file.Path.LocalPath;
         var fileInfo = new FileInfo(localFilePath);
         fileSize = fileInfo.Length;
@@ -177,12 +194,11 @@ public class UploadFileItem : ViewModelBase
 
     public async Task UploadAsync(string token)
     {
-        using var fileStream = await sourceFile.OpenReadAsync();
+        using var fileStream = await _sourceFile.OpenReadAsync();
         var container = new CarContainer(fileStream);
         var HttpClient = CreateHttpClient(token);
         var partCount = container.TaskCount();
-        _status = UploadStatus.Uploading;
-        this.RaisePropertyChanged(nameof(StatusText));
+        Status = UploadStatus.Uploading;
         bool allSuccess = true;
         for (var i = 0; i < partCount; i++)
         {
@@ -206,8 +222,7 @@ public class UploadFileItem : ViewModelBase
             }
         }
         //
-        _status = allSuccess ? UploadStatus.Success : UploadStatus.Failed;
-        this.RaisePropertyChanged(nameof(StatusText));
+        Status = allSuccess ? UploadStatus.Success : UploadStatus.Failed;
     }
 
     private void UpdateProgress(int taskIndex, long total, long completed)
@@ -217,9 +232,8 @@ public class UploadFileItem : ViewModelBase
         this.RaisePropertyChanged(nameof(UploadSize));
         if (total == completed)
         {
-            _status = UploadStatus.WaitResponse;
+            Status = UploadStatus.WaitResponse;
         }
-        this.RaisePropertyChanged(nameof(StatusText));
     }
 
     private async Task UploadPartAsync(HttpClient httpClient, CarContainer container, int taskIndex)
@@ -231,6 +245,7 @@ public class UploadFileItem : ViewModelBase
             cidData = await container.RunCarTaskAsync(memoryStream, taskIndex);
             carData = memoryStream.ToArray();
         }
+        CID = CidTool.ToV0String(cidData);
         using var content = new ProgressContent(carData, (total, completed) => UpdateProgress(taskIndex, total, completed));
         content.Headers.ContentType = new("application/car");
         taskPartUploadSizeList[taskIndex] = 0;
