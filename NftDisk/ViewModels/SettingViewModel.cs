@@ -66,8 +66,16 @@ public class SettingViewModel : ViewModelBase
                 GatewayConfig.Instance.AddressList.Add(content1);
             }
         }
-        await ApiTokenConfig.SaveAsync(ApiTokenConfig.DEFAULT_PATH);
-        await GatewayConfig.SaveAsync(GatewayConfig.DEFAULT_PATH);
+        try
+        {
+            await ApiTokenConfig.SaveAsync(ApiTokenConfig.DEFAULT_PATH);
+            await GatewayConfig.SaveAsync(GatewayConfig.DEFAULT_PATH);
+            MsgTipViewModel.Instance.ShowDialog(true, "保持配置成功");
+        }
+        catch (Exception ex)
+        {
+            MsgTipViewModel.Instance.ShowDialog(false, "保持配置失败, " + ex.Message);
+        }
     }
 
     private void ProcessCancelAction()

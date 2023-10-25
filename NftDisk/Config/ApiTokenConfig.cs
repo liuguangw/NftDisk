@@ -11,7 +11,7 @@ public class ApiTokenConfig
     
     [JsonPropertyName("token")]
     public string Token { get; set; } = string.Empty;
-    public static ApiTokenConfig Instance = new();
+    public static readonly ApiTokenConfig Instance = new();
 
     public static async Task LoadAsync(string path)
     {

@@ -121,6 +121,8 @@
             DataContext="{Binding AskUploadVm}" IsVisible="{Binding ShowModal}" />
         <pages:SettingPage Width="500" Height="480" HorizontalAlignment="Center" VerticalAlignment="Center"
             DataContext="{Binding SettingVm}" IsVisible="{Binding ShowModal}" />
+        <pages:MsgTipPage DataContext="{Binding MsgTipVm}"
+            IsVisible="{Binding ShowModal}" Classes.hidden="{Binding IsStyleHidden}"/>
     </Panel>
 
 </Window>

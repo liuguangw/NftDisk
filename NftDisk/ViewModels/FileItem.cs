@@ -12,7 +12,6 @@ namespace Liuguang.NftDisk.ViewModels;
 /// </summary>
 public class FileItem : ViewModelBase
 {
-    public const string ICON_PATH_PREFIX = "avares://NftDisk/Assets/icons";
     #region Fields
     private long id = 0;
     private FileType itemType = FileType.File;
@@ -37,16 +36,15 @@ public class FileItem : ViewModelBase
     {
         get
         {
-            string imgPath;
             if (itemType == FileType.Dir)
             {
-                imgPath = $"{ICON_PATH_PREFIX}/folder.png";
+                return AssetTool.LoadIconImage("folder.png");
             }
-            else
+            else if (itemType == FileType.File)
             {
-                imgPath = $"{ICON_PATH_PREFIX}/file.png";
+                return AssetTool.LoadIconImage("file.png");
             }
-            return new Bitmap(AssetLoader.Open(new Uri(imgPath)));
+            return null;
         }
     }
 

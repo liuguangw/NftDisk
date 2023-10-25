@@ -40,6 +40,7 @@ public class MainWindowViewModel : ViewModelBase
     public AskUploadViewModel AskUploadVm { get; } = new();
     public UploadListViewModel UploadListVm { get; } = new();
     public SettingViewModel SettingVm { get; } = new();
+    public MsgTipViewModel MsgTipVm => MsgTipViewModel.Instance;
     public ReactiveCommand<FileItem, Unit> OpenDirOrShowFileLinksCommand { get; }
     public ReactiveCommand<Unit, Unit> GotoUpFolderCommand { get; }
     public bool CanGotoUpFolder => currentDirId != 0;
@@ -300,6 +301,14 @@ public class MainWindowViewModel : ViewModelBase
         {
             return;
         }
+        //检测目录是否已经存在
+        var tLog = await database.GetFileInfoAsync(currentDirId, folderName);
+        if (tLog is not null)
+        {
+            MsgTipVm.ShowDialog(false, $"目录{folderName}已存在");
+            return;
+        }
+        //
         var folderLog = new StorageFile(folderName)
         {
             ParentID = currentDirId,
@@ -307,7 +316,16 @@ public class MainWindowViewModel : ViewModelBase
             Name = folderName,
         };
         folderLog.SyncTime();
-        await database.InsertFileLog(folderLog);
+        try
+        {
+            await database.InsertFileLog(folderLog);
+        }
+        catch (Exception ex)
+        {
+            MsgTipVm.ShowDialog(false, $"创建目录{folderName}失败, {ex.Message}");
+            return;
+        }
+        MsgTipVm.ShowDialog(true, $"创建目录{folderName}成功");
         RefreshAction();
     }
 

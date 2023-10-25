@@ -12,7 +12,7 @@ public class GatewayConfig
     
     [JsonPropertyName("address_list")]
     public List<string> AddressList { get; set; } = new();
-    public static GatewayConfig Instance = new();
+    public static readonly GatewayConfig Instance = new();
 
     public static async Task LoadAsync(string path)
     {

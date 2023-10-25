@@ -1,6 +1,7 @@
 using System;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Liuguang.NftDisk.Common;
 using Liuguang.NftDisk.ViewModels;
 
 /// <summary>
@@ -19,20 +20,18 @@ public class LocalItem : ViewModelBase
     /// <summary>
     /// 图标
     /// </summary>
-    public Bitmap? IconSource
+    public Bitmap IconSource
     {
         get
         {
-            string imgPath;
             if (_isFile)
             {
-                imgPath = FileItem.ICON_PATH_PREFIX + "/file.png";
+                return AssetTool.LoadIconImage("file.png");
             }
             else
             {
-                imgPath = FileItem.ICON_PATH_PREFIX + "/folder.png";
+                return AssetTool.LoadIconImage("folder.png");
             }
-            return new Bitmap(AssetLoader.Open(new Uri(imgPath)));
         }
     }
 

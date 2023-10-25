@@ -1,0 +1,57 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Liuguang.NftDisk.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="225"
+             x:Class="Liuguang.NftDisk.Views.Pages.MsgTipPage"
+             x:DataType="vm:MsgTipViewModel" x:CompileBindings="False">
+  <UserControl.Styles>
+      <Style Selector="Button.close">
+          <Setter Property="CornerRadius" Value="0 0 0 0"/>
+          <Setter Property="BorderThickness" Value="0"/>
+          <Setter Property="Width" Value="36"/>
+          <Setter Property="Height" Value="36"/>
+          <Setter Property="HorizontalAlignment" Value="Right"/>
+          <Setter Property="VerticalAlignment" Value="Top"/>
+          <Style Selector="^ > Image">
+              <Setter Property="Width" Value="20"/>
+              <Setter Property="Height" Value="20"/>
+          </Style>
+          <Style Selector="^ /template/ ContentPresenter">
+              <Setter Property="Background" Value="{Binding $parent[Panel].Background}"/>
+          </Style>
+          <Style Selector="^:pointerover">
+              <Setter Property="ContentTemplate">
+                <Setter.Value>
+                  <DataTemplate>
+                      <Image Source="/Assets/icons/close_hover.png" />
+                  </DataTemplate>
+                </Setter.Value>
+              </Setter>
+          </Style>
+          <Style Selector="^:pressed">
+              <Setter Property="ContentTemplate">
+                <Setter.Value>
+                  <DataTemplate>
+                      <Image Source="/Assets/icons/close_pressed.png" />
+                  </DataTemplate>
+                </Setter.Value>
+              </Setter>
+          </Style>
+      </Style>
+  </UserControl.Styles>
+  <Border BorderBrush="{Binding BorderColor}" BorderThickness="1">
+  <Panel Background="{Binding BackgroundColor}">
+    <Grid RowDefinitions="*" ColumnDefinitions="60,*" Margin="0,0,36,0">
+        <Image Grid.Column="0" Height="40" Margin="10,0" VerticalAlignment="Center" Source="{Binding IconSource}"/>
+        <TextBlock Grid.Column="1" Margin="5" FontSize="18"
+                HorizontalAlignment="Left" VerticalAlignment="Center" Foreground="{Binding TextColor}"
+                Text="{Binding Message}" TextWrapping="Wrap"/>
+    </Grid>
+    <Button Grid.Column="1" ToolTip.Tip="关闭" Classes="close" Command="{Binding CloseAction}">
+        <Image Source="/Assets/icons/close.png"/>
+    </Button>
+  </Panel>
+  </Border>
+</UserControl>
