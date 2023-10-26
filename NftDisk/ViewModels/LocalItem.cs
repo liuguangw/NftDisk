@@ -1,6 +1,4 @@
-using System;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform;
 using Liuguang.NftDisk.Common;
 using Liuguang.NftDisk.ViewModels;
 

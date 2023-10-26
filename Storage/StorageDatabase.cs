@@ -228,7 +228,7 @@ public sealed class StorageDatabase
             throw new Exception("database error, connection is null");
         }
         var command = connection.CreateCommand();
-        command.CommandText = $"SELECT * FROM files WHERE parent_id=$parent_id AND name=$name";
+        command.CommandText = "SELECT * FROM files WHERE parent_id=$parent_id AND name=$name";
         command.Parameters.AddWithValue("$parent_id", pathID);
         command.Parameters.AddWithValue("$name", name);
         using var reader = await command.ExecuteReaderAsync();
@@ -324,5 +324,77 @@ public sealed class StorageDatabase
         command.Parameters.AddWithValue("$name", newName);
         command.Parameters.AddWithValue("$id", fId);
         await command.ExecuteNonQueryAsync();
+    }
+
+    public async Task DeleteItemAsync(long fId)
+    {
+        if (connection is null)
+        {
+            throw new Exception("database error, connection is null");
+        }
+        var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM files WHERE id = $id";
+        command.Parameters.AddWithValue("$id", fId);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// 删除文件夹和他的子项
+    /// </summary>
+    /// <param name="dirId"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    public async Task DeleteFolderAsync(long dirId)
+    {
+        if (connection is null)
+        {
+            throw new Exception("database error, connection is null");
+        }
+        List<long> dirIdList = new() { dirId };
+        List<long> toDeleteIdList = new() { dirId }; ;
+        while (dirIdList.Count > 0)
+        {
+            var parentIdCondition = FormatInCondition(dirIdList);
+            dirIdList.Clear();
+            var command = connection.CreateCommand();
+            //获取子项列表
+            command.CommandText = $"SELECT id,item_type FROM files WHERE parent_id {parentIdCondition}";
+            //Trace.WriteLine(command.CommandText);
+            using var reader = await command.ExecuteReaderAsync();
+            while (reader.Read())
+            {
+                var subItemType = reader.GetInt32("item_type");
+                var subItemId = reader.GetInt64("id");
+                toDeleteIdList.Add(subItemId);
+                if (subItemType == 0)
+                {
+                    dirIdList.Add(subItemId);
+                }
+            }
+        }
+        var idCondition = FormatInCondition(toDeleteIdList);
+        var delCommand = connection.CreateCommand();
+        delCommand.CommandText = $"DELETE FROM files WHERE id {idCondition}";
+        //Trace.WriteLine(delCommand.CommandText);
+        await delCommand.ExecuteNonQueryAsync();
+    }
+
+    private static string FormatInCondition(IEnumerable<long> itemIds)
+    {
+        if (itemIds.Count() < 1)
+        {
+            throw new Exception("Invalid params count");
+        }
+        else if (itemIds.Count() == 1)
+        {
+            var firstItemID = itemIds.LastOrDefault();
+            return $"= {firstItemID}";
+        }
+        else
+        {
+            var idStrList = from tmpId in itemIds select tmpId.ToString();
+            var idStr = string.Join(", ", idStrList);
+            return $"IN ({idStr})";
+        }
     }
 }

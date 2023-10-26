@@ -43,10 +43,12 @@ public class MainWindowViewModel : ViewModelBase
     public UploadListViewModel UploadListVm { get; } = new();
     public SettingViewModel SettingVm { get; } = new();
     public DownloadUrlViewModel DownloadUrlVm { get; } = new();
+    public ConfirmViewModel ConfirmVm { get; } = new();
     public MsgTipViewModel MsgTipVm => MsgTipViewModel.Instance;
     public ReactiveCommand<FileItem, Unit> OpenDirOrShowFileLinksCommand { get; }
     public ReactiveCommand<FileItem, Unit> CopyCidCommand { get; }
     public ReactiveCommand<FileItem, Unit> RenameCommand { get; }
+    public ReactiveCommand<FileItem, Unit> DeleteItemCommand { get; }
     /// <summary>
     /// 返回上一级文件夹
     /// </summary>
@@ -59,6 +61,7 @@ public class MainWindowViewModel : ViewModelBase
         OpenDirOrShowFileLinksCommand = ReactiveCommand.Create<FileItem>(OpenDirOrShowFileLinks);
         CopyCidCommand = ReactiveCommand.Create<FileItem>(OpenCidAction);
         RenameCommand = ReactiveCommand.Create<FileItem>(RenameAction);
+        DeleteItemCommand = ReactiveCommand.Create<FileItem>(DeleteAction);
         var canGotoUpFolder = this.WhenAnyValue(item => item.CanGotoUpFolder);
         GotoUpFolderCommand = ReactiveCommand.Create(GotoUpFolderAction, canGotoUpFolder);
         UploadListVm.UploadSuccessAction = ProcessFileUploadSuccess;
@@ -434,6 +437,61 @@ public class MainWindowViewModel : ViewModelBase
         fileItem.Name = newName;
         MsgTipVm.ShowDialog(true, "重命名成功");
         RefreshAction();
+    }
+
+    /// <summary>
+    /// 删除文件或者文件夹
+    /// </summary>
+    /// <param name="fileItem"></param>
+    private void DeleteAction(FileItem fileItem)
+    {
+        ConfirmVm.CompleteAction = () =>
+        {
+            ShowModal = false;
+            if (ConfirmVm.Confirm)
+            {
+                ProcessDeleteItem(fileItem);
+            }
+        };
+        ShowModal = true;
+        var content = string.Format("确定要删除{0}{1}吗?", fileItem.ItemType == FileType.Dir ? "文件夹" : "文件", fileItem.Name);
+        ConfirmVm.ShowDialog("删除确认", content);
+    }
+
+    private async void ProcessDeleteItem(FileItem fileItem)
+    {
+        if (database is null)
+        {
+            return;
+        }
+        if (fileItem.ItemType == FileType.File)
+        {
+            try
+            {
+                await database.DeleteItemAsync(fileItem.ID);
+            }
+            catch (Exception ex)
+            {
+                MsgTipVm.ShowDialog(false, $"删除文件{fileItem.Name}失败, {ex.Message}");
+                return;
+            }
+            fileItems.Remove(fileItem);
+            MsgTipVm.ShowDialog(true, $"删除文件{fileItem.Name}成功");
+        }
+        else if (fileItem.ItemType == FileType.Dir)
+        {
+            try
+            {
+                await database.DeleteFolderAsync(fileItem.ID);
+            }
+            catch (Exception ex)
+            {
+                MsgTipVm.ShowDialog(false, $"删除文件夹{fileItem.Name}失败, {ex.Message}");
+                return;
+            }
+            fileItems.Remove(fileItem);
+            MsgTipVm.ShowDialog(true, $"删除文件夹{fileItem.Name}成功");
+        }
     }
 
     /// <summary>

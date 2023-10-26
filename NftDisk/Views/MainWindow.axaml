@@ -107,7 +107,8 @@
                                                         <Image Width="16" Height="16" Source="/Assets/icons/rename.png" />
                                                     </MenuItem.Icon>
                                                 </MenuItem>
-                                                <MenuItem Header="删除" Classes="delete">
+                                                <MenuItem Header="删除" Classes="delete" 
+                                                    Command="{Binding $parent[DataGrid].DataContext.DeleteItemCommand}" CommandParameter="{Binding}">
                                                     <MenuItem.Icon>
                                                         <Image Width="16" Height="16" Source="/Assets/icons/delete.png" />
                                                     </MenuItem.Icon>
@@ -131,6 +132,8 @@
             DataContext="{Binding SettingVm}" IsVisible="{Binding ShowModal}" />
         <pages:DownloadUrlPage Width="940" Height="480" HorizontalAlignment="Center" VerticalAlignment="Center"
             DataContext="{Binding DownloadUrlVm}" IsVisible="{Binding ShowModal}" />
+        <pages:ConfirmPage Width="420" Height="230" HorizontalAlignment="Center" VerticalAlignment="Center"
+            DataContext="{Binding ConfirmVm}" IsVisible="{Binding ShowModal}" />
         <pages:MsgTipPage DataContext="{Binding MsgTipVm}"
             IsVisible="{Binding ShowModal}" Classes.hidden="{Binding IsStyleHidden}"/>
     </Panel>
