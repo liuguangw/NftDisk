@@ -40,6 +40,7 @@ public class MainWindowViewModel : ViewModelBase
     public AskUploadViewModel AskUploadVm { get; } = new();
     public UploadListViewModel UploadListVm { get; } = new();
     public SettingViewModel SettingVm { get; } = new();
+    public DownloadUrlViewModel DownloadUrlVm { get; } = new();
     public MsgTipViewModel MsgTipVm => MsgTipViewModel.Instance;
     public ReactiveCommand<FileItem, Unit> OpenDirOrShowFileLinksCommand { get; }
     public ReactiveCommand<Unit, Unit> GotoUpFolderCommand { get; }
@@ -236,10 +237,11 @@ public class MainWindowViewModel : ViewModelBase
         if (fileItem.ItemType == FileType.Dir)
         {
             await OpenFolderAsync(fileItem.ID);
-            return;
         }
-        //todo
-        throw new NotImplementedException();
+        else if (fileItem.ItemType == FileType.File)
+        {
+            ShowFileLinks(fileItem);
+        }
     }
 
     private async Task OpenFolderAsync(long pathID)
@@ -253,6 +255,21 @@ public class MainWindowViewModel : ViewModelBase
         CurrentDir = await database.GetFullPathAsync(currentDirId);
         await LoadFileListAsync();
     }
+
+    /// <summary>
+    /// 显示文件的下载地址
+    /// </summary>
+    /// <param name="fileItem"></param>
+    private void ShowFileLinks(FileItem fileItem)
+    {
+        DownloadUrlVm.CompleteAction = () =>
+        {
+            ShowModal = false;
+        };
+        ShowModal = true;
+        DownloadUrlVm.ShowDialog(fileItem.CID, fileItem.Name);
+    }
+
     private async void GotoUpFolderAction()
     {
         if (database is null)

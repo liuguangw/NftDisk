@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Reactive;
 using Liuguang.NftDisk.Config;
 using ReactiveUI;
@@ -70,11 +69,11 @@ public class SettingViewModel : ViewModelBase
         {
             await ApiTokenConfig.SaveAsync(ApiTokenConfig.DEFAULT_PATH);
             await GatewayConfig.SaveAsync(GatewayConfig.DEFAULT_PATH);
-            MsgTipViewModel.Instance.ShowDialog(true, "保持配置成功");
+            MsgTipViewModel.Instance.ShowDialog(true, "保存配置成功");
         }
         catch (Exception ex)
         {
-            MsgTipViewModel.Instance.ShowDialog(false, "保持配置失败, " + ex.Message);
+            MsgTipViewModel.Instance.ShowDialog(false, "保存配置失败, " + ex.Message);
         }
     }
 

@@ -1,11 +1,12 @@
 {
   "address_list": [
     "https://dweb.link/ipfs",
-    "https://cloudflare-ipfs.com/ipfs",
     "https://cf-ipfs.com/ipfs",
-    "https://nftstorage.link/ipfs",
-    "https://ipfs.io/ipfs",
+    "https://cloudflare-ipfs.com/ipfs",
     "https://hardbin.com/ipfs",
+    "https://gateway.pinata.cloud/ipfs",
+    "https://ipfs.io/ipfs",
+    "https://nftstorage.link/ipfs",
     "https://w3s.link/ipfs"
   ]
 }

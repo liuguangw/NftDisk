@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Liuguang.NftDisk.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="225"
+             x:Class="Liuguang.NftDisk.Views.Pages.DownloadUrlPage"
+             x:DataType="vm:DownloadUrlViewModel" x:CompileBindings="False">
+  <DockPanel Background="White">
+      <Grid DockPanel.Dock="Top" Classes="page_header" RowDefinitions="*" ColumnDefinitions="*,36">
+        <Panel Grid.Column="0">
+          <TextBlock Text="下载地址"/>
+        </Panel>
+        <Button Grid.Column="1" ToolTip.Tip="关闭" Command="{Binding CloseAction}">
+            <Image Source="/Assets/icons/close.png"/>
+        </Button>
+      </Grid>
+      <Panel DockPanel.Dock="Bottom" Margin="5">
+        <StackPanel HorizontalAlignment="Stretch" Margin="8">
+          <TextBlock Text="IPFS协议地址" VerticalAlignment="Center"/>
+          <TextBox Text="{Binding IpfsUrl}" Margin="10,0" IsReadOnly="True"
+                  VerticalAlignment="Center" AcceptsReturn="False" />
+          <TextBlock Text="Gateway地址" VerticalAlignment="Center" Margin="0,10,0,0"/>
+          <TextBox Text="{Binding GatewayUrls}" Margin="10,0" IsReadOnly="True"
+                   Height="330"
+                   AcceptsReturn="True" TextWrapping="Wrap"
+                   VerticalAlignment="Stretch"/>
+        </StackPanel>
+      </Panel>
+  </DockPanel>
+</UserControl>
