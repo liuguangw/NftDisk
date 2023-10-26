@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Reactive;
 using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Liuguang.NftDisk.Config;
@@ -43,6 +45,11 @@ public class MainWindowViewModel : ViewModelBase
     public DownloadUrlViewModel DownloadUrlVm { get; } = new();
     public MsgTipViewModel MsgTipVm => MsgTipViewModel.Instance;
     public ReactiveCommand<FileItem, Unit> OpenDirOrShowFileLinksCommand { get; }
+    public ReactiveCommand<FileItem, Unit> CopyCidCommand { get; }
+    public ReactiveCommand<FileItem, Unit> RenameCommand { get; }
+    /// <summary>
+    /// 返回上一级文件夹
+    /// </summary>
     public ReactiveCommand<Unit, Unit> GotoUpFolderCommand { get; }
     public bool CanGotoUpFolder => currentDirId != 0;
     #endregion
@@ -50,6 +57,8 @@ public class MainWindowViewModel : ViewModelBase
     public MainWindowViewModel()
     {
         OpenDirOrShowFileLinksCommand = ReactiveCommand.Create<FileItem>(OpenDirOrShowFileLinks);
+        CopyCidCommand = ReactiveCommand.Create<FileItem>(OpenCidAction);
+        RenameCommand = ReactiveCommand.Create<FileItem>(RenameAction);
         var canGotoUpFolder = this.WhenAnyValue(item => item.CanGotoUpFolder);
         GotoUpFolderCommand = ReactiveCommand.Create(GotoUpFolderAction, canGotoUpFolder);
         UploadListVm.UploadSuccessAction = ProcessFileUploadSuccess;
@@ -270,6 +279,32 @@ public class MainWindowViewModel : ViewModelBase
         DownloadUrlVm.ShowDialog(fileItem.CID, fileItem.Name);
     }
 
+    /// <summary>
+    /// 复制文件cid
+    /// </summary>
+    /// <param name="fileItem"></param>
+    private async void OpenCidAction(FileItem fileItem)
+    {
+        if (Application.Current!.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            var clipboard = desktop.MainWindow!.Clipboard;
+            if (clipboard is null)
+            {
+                return;
+            }
+            try
+            {
+
+                await clipboard.SetTextAsync(fileItem.CID);
+                MsgTipVm.ShowDialog(true, $"复制文件{fileItem.Name}的CID成功");
+            }
+            catch (Exception ex)
+            {
+                MsgTipVm.ShowDialog(true, $"复制文件{fileItem.Name}的CID失败, {ex.Message}");
+            }
+        }
+    }
+
     private async void GotoUpFolderAction()
     {
         if (database is null)
@@ -343,6 +378,61 @@ public class MainWindowViewModel : ViewModelBase
             return;
         }
         MsgTipVm.ShowDialog(true, $"创建目录{folderName}成功");
+        RefreshAction();
+    }
+
+    /// <summary>
+    /// 重命名
+    /// </summary>
+    /// <param name="fileItem"></param>
+    private void RenameAction(FileItem fileItem)
+    {
+        var typeText = fileItem.ItemType == FileType.Dir ? "目录" : "文件";
+        AskStringVm.Label = typeText + "名";
+        AskStringVm.Title = "重命名" + typeText;
+        AskStringVm.Watermark = "请输入新的" + typeText + "名";
+        AskStringVm.InputText = fileItem.Name;
+        AskStringVm.CompleteAction = () =>
+        {
+            ShowModal = false;
+            if (AskStringVm.Confirm)
+            {
+                ProcessRenameItem(fileItem, AskStringVm.InputText);
+            }
+        };
+        ShowModal = true;
+        AskStringVm.ShowModal = true;
+    }
+
+    private async void ProcessRenameItem(FileItem fileItem, string newName)
+    {
+        if (fileItem.Name == newName)
+        {
+            return;
+        }
+        if (database is null)
+        {
+            return;
+        }
+        //检测是否已经存在
+        var tLog = await database.GetFileInfoAsync(fileItem.ParentID, newName);
+        if (tLog is not null)
+        {
+            MsgTipVm.ShowDialog(false, $"{newName}已存在");
+            return;
+        }
+        //
+        try
+        {
+            await database.UpdateFilenameAsync(fileItem.ID, newName);
+        }
+        catch (Exception ex)
+        {
+            MsgTipVm.ShowDialog(false, $"重命名失败, {ex.Message}");
+            return;
+        }
+        fileItem.Name = newName;
+        MsgTipVm.ShowDialog(true, "重命名成功");
         RefreshAction();
     }
 

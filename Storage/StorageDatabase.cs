@@ -305,4 +305,24 @@ public sealed class StorageDatabase
             fileLog.ID = itemID;
         }
     }
+
+    /// <summary>
+    /// 更新名称
+    /// </summary>
+    /// <param name="fId"></param>
+    /// <param name="newName"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    public async Task UpdateFilenameAsync(long fId, string newName)
+    {
+        if (connection is null)
+        {
+            throw new Exception("database error, connection is null");
+        }
+        var command = connection.CreateCommand();
+        command.CommandText = "UPDATE files SET name = $name WHERE id = $id";
+        command.Parameters.AddWithValue("$name", newName);
+        command.Parameters.AddWithValue("$id", fId);
+        await command.ExecuteNonQueryAsync();
+    }
 }
