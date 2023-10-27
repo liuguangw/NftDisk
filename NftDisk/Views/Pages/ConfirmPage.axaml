@@ -16,10 +16,10 @@
         </Button>
       </Grid>
       <Panel DockPanel.Dock="Bottom" Margin="5">
-        <StackPanel Height="120" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="5">
+        <Panel Height="120" VerticalAlignment="Top" Margin="5">
           <TextBlock Text="{Binding Content}" HorizontalAlignment="Left" VerticalAlignment="Center"
             Margin="5" FontSize="18" TextWrapping="Wrap"/>
-        </StackPanel>
+        </Panel>
         <WrapPanel HorizontalAlignment="Right" VerticalAlignment="Bottom">
           <Button Content="取消" Command="{Binding CancelCommand}" Margin="0,0,8,0"/>
           <Button Content="确定" Command="{Binding ConfirmCommand}"/>

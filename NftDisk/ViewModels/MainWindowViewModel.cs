@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Linq;
 using System.Reactive;
 using System.Threading.Tasks;
 using Avalonia;
@@ -17,24 +20,54 @@ public class MainWindowViewModel : ViewModelBase
 {
     #region Fields
     private bool _showModal = false;
-    private long currentDirId = 0;
-    private string currentDir = "/";
-    private StorageDatabase? database = null;
-    private readonly ObservableCollection<FileItem> fileItems = new();
+    private long _currentDirId = 0;
+    private string _currentDir = "/";
+    private bool _isSelectAll = false;
+    private StorageDatabase? _database = null;
+    private readonly ObservableCollection<FileItem> _fileItems = new();
     #endregion
 
     #region Properties
-    public ObservableCollection<FileItem> FileItems => fileItems;
+    public ObservableCollection<FileItem> FileItems => _fileItems;
     public string CurrentDir
     {
-        get => currentDir;
-        set => this.RaiseAndSetIfChanged(ref currentDir, value);
+        get => _currentDir;
+        set => this.RaiseAndSetIfChanged(ref _currentDir, value);
     }
 
     public bool ShowModal
     {
         get => _showModal;
         set => this.RaiseAndSetIfChanged(ref _showModal, value);
+    }
+
+    public bool IsSelectAll
+    {
+        get => _isSelectAll;
+        set
+        {
+            if (_isSelectAll != value)
+            {
+                _isSelectAll = value;
+                this.RaisePropertyChanged();
+                ProcessSelectAll(value);
+            }
+        }
+    }
+
+    public bool HasSelection
+    {
+        get
+        {
+            foreach (var item in _fileItems)
+            {
+                if (item.Selected)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     public AskStringViewModel AskStringVm { get; } = new();
@@ -53,25 +86,32 @@ public class MainWindowViewModel : ViewModelBase
     /// 返回上一级文件夹
     /// </summary>
     public ReactiveCommand<Unit, Unit> GotoUpFolderCommand { get; }
-    public bool CanGotoUpFolder => currentDirId != 0;
+    public bool CanGotoUpFolder => _currentDirId != 0;
+    public ReactiveCommand<Unit, Unit> MutiDeleteItemCommand { get; }
     #endregion
 
     public MainWindowViewModel()
     {
         OpenDirOrShowFileLinksCommand = ReactiveCommand.Create<FileItem>(OpenDirOrShowFileLinks);
-        CopyCidCommand = ReactiveCommand.Create<FileItem>(OpenCidAction);
+        CopyCidCommand = ReactiveCommand.Create<FileItem>(CopyCidAction);
         RenameCommand = ReactiveCommand.Create<FileItem>(RenameAction);
         DeleteItemCommand = ReactiveCommand.Create<FileItem>(DeleteAction);
         var canGotoUpFolder = this.WhenAnyValue(item => item.CanGotoUpFolder);
         GotoUpFolderCommand = ReactiveCommand.Create(GotoUpFolderAction, canGotoUpFolder);
+        var canMutiDelete = this.WhenAnyValue(item => item.HasSelection);
+        MutiDeleteItemCommand = ReactiveCommand.Create(MutiDeleteAction, canMutiDelete);
+
+
         UploadListVm.UploadSuccessAction = ProcessFileUploadSuccess;
+        _fileItems.CollectionChanged += FileItemListChanged;
     }
+
     public async Task OnLoadAsync()
     {
-        if (database is null)
+        if (_database is null)
         {
-            database = new StorageDatabase("./data/storage.db");
-            await database.OpenAsync();
+            _database = new StorageDatabase("./data/storage.db");
+            await _database.OpenAsync();
         }
         await LoadFileListAsync();
         await LoadConfigAsync();
@@ -86,40 +126,72 @@ public class MainWindowViewModel : ViewModelBase
 
     private async Task LoadFileListAsync()
     {
-        if (database is null)
+        if (_database is null)
         {
             return;
         }
-        var files = await database.GetFileListAsync(currentDirId);
-        fileItems.Clear();
+        var files = await _database.GetFileListAsync(_currentDirId);
+        _fileItems.Clear();
         foreach (var fileInfo in files)
         {
+            FileItem? item = null;
             if (fileInfo.ItemType == FileType.Dir)
             {
-                fileItems.Add(new FileItem(
+                item = new FileItem(
                     fileInfo.ID, fileInfo.ParentID,
                     fileInfo.Name, fileInfo.UploadTime
-                ));
+                );
             }
             else if (fileInfo.ItemType == FileType.File)
             {
-                fileItems.Add(new FileItem(
+                item = new FileItem(
                     fileInfo.ID, fileInfo.ParentID,
                     fileInfo.Name, fileInfo.UploadTime,
                     fileInfo.CID, fileInfo.Size
-                ));
+                );
+            }
+            if (item is not null)
+            {
+                _fileItems.Add(item);
+                item.PropertyChanged += FileItemPropertyChanged;
             }
         }
+    }
+
+    private void FileItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is FileItem fileItem)
+        {
+            if (e.PropertyName == nameof(fileItem.Selected))
+            {
+                if (!fileItem.Selected && _isSelectAll)
+                {
+                    //取消全选的勾选状态
+                    SetSelectAllStatus(false);
+                }
+                this.RaisePropertyChanged(nameof(HasSelection));
+            }
+        }
+    }
+
+    private void FileItemListChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        //取消全选的勾选状态
+        if (_isSelectAll)
+        {
+            SetSelectAllStatus(false);
+        }
+        this.RaisePropertyChanged(nameof(HasSelection));
     }
 
     public async Task FreeResourceAsync()
     {
         UploadListVm.Stop();
-        if (database is null)
+        if (_database is null)
         {
             return;
         }
-        await database.CloseAsync();
+        await _database.CloseAsync();
     }
 
     /// <summary>
@@ -154,7 +226,7 @@ public class MainWindowViewModel : ViewModelBase
                 {
                     UploadListVm.ShowDialog();
                 }
-                Task.Run(() => AddUploadTaskAsync(currentDirId, fileList, dirList));
+                Task.Run(() => AddUploadTaskAsync(_currentDirId, fileList, dirList));
             }
         };
         if (itemList.Count > 0)
@@ -192,13 +264,13 @@ public class MainWindowViewModel : ViewModelBase
 
     private async Task AddUploadDirTaskAsync(long parentDirID, IStorageFolder dirInfo)
     {
-        if (database is null)
+        if (_database is null)
         {
             return;
         }
         //判断文件夹是否存在
         var dirName = dirInfo.Name;
-        var dbDirInfo = await database.GetFileInfoAsync(parentDirID, dirName);
+        var dbDirInfo = await _database.GetFileInfoAsync(parentDirID, dirName);
         if (dbDirInfo is null)
         {
             //创建文件夹
@@ -209,9 +281,9 @@ public class MainWindowViewModel : ViewModelBase
                 Name = dirName,
             };
             dbDirInfo.SyncTime();
-            await database.InsertFileLog(dbDirInfo);
+            await _database.InsertFileLog(dbDirInfo);
             //刷新列表
-            if (parentDirID == currentDirId)
+            if (parentDirID == _currentDirId)
             {
                 Dispatcher.UIThread.Invoke(() =>
                 {
@@ -258,13 +330,13 @@ public class MainWindowViewModel : ViewModelBase
 
     private async Task OpenFolderAsync(long pathID)
     {
-        if (database is null)
+        if (_database is null)
         {
             return;
         }
-        currentDirId = pathID;
+        _currentDirId = pathID;
         this.RaisePropertyChanged(nameof(CanGotoUpFolder));
-        CurrentDir = await database.GetFullPathAsync(currentDirId);
+        CurrentDir = await _database.GetFullPathAsync(_currentDirId);
         await LoadFileListAsync();
     }
 
@@ -286,7 +358,7 @@ public class MainWindowViewModel : ViewModelBase
     /// 复制文件cid
     /// </summary>
     /// <param name="fileItem"></param>
-    private async void OpenCidAction(FileItem fileItem)
+    private async void CopyCidAction(FileItem fileItem)
     {
         if (Application.Current!.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
@@ -310,11 +382,11 @@ public class MainWindowViewModel : ViewModelBase
 
     private async void GotoUpFolderAction()
     {
-        if (database is null)
+        if (_database is null)
         {
             return;
         }
-        var pathInfo = await database.GetFileInfoAsync(currentDirId);
+        var pathInfo = await _database.GetFileInfoAsync(_currentDirId);
         if (pathInfo is null)
         {
             return;
@@ -324,7 +396,7 @@ public class MainWindowViewModel : ViewModelBase
 
     public async void RefreshAction()
     {
-        await OpenFolderAsync(currentDirId);
+        await OpenFolderAsync(_currentDirId);
     }
 
     public async void GotoRootFolderAction()
@@ -352,12 +424,12 @@ public class MainWindowViewModel : ViewModelBase
 
     private async void ProcessCreateFolder(string folderName)
     {
-        if (database is null)
+        if (_database is null)
         {
             return;
         }
         //检测目录是否已经存在
-        var tLog = await database.GetFileInfoAsync(currentDirId, folderName);
+        var tLog = await _database.GetFileInfoAsync(_currentDirId, folderName);
         if (tLog is not null)
         {
             MsgTipVm.ShowDialog(false, $"目录{folderName}已存在");
@@ -366,14 +438,14 @@ public class MainWindowViewModel : ViewModelBase
         //
         var folderLog = new StorageFile(folderName)
         {
-            ParentID = currentDirId,
+            ParentID = _currentDirId,
             ItemType = FileType.Dir,
             Name = folderName,
         };
         folderLog.SyncTime();
         try
         {
-            await database.InsertFileLog(folderLog);
+            await _database.InsertFileLog(folderLog);
         }
         catch (Exception ex)
         {
@@ -413,12 +485,12 @@ public class MainWindowViewModel : ViewModelBase
         {
             return;
         }
-        if (database is null)
+        if (_database is null)
         {
             return;
         }
         //检测是否已经存在
-        var tLog = await database.GetFileInfoAsync(fileItem.ParentID, newName);
+        var tLog = await _database.GetFileInfoAsync(fileItem.ParentID, newName);
         if (tLog is not null)
         {
             MsgTipVm.ShowDialog(false, $"{newName}已存在");
@@ -427,7 +499,7 @@ public class MainWindowViewModel : ViewModelBase
         //
         try
         {
-            await database.UpdateFilenameAsync(fileItem.ID, newName);
+            await _database.UpdateFilenameAsync(fileItem.ID, newName);
         }
         catch (Exception ex)
         {
@@ -460,7 +532,7 @@ public class MainWindowViewModel : ViewModelBase
 
     private async void ProcessDeleteItem(FileItem fileItem)
     {
-        if (database is null)
+        if (_database is null)
         {
             return;
         }
@@ -468,30 +540,92 @@ public class MainWindowViewModel : ViewModelBase
         {
             try
             {
-                await database.DeleteItemAsync(fileItem.ID);
+                await _database.DeleteItemAsync(fileItem.ID);
             }
             catch (Exception ex)
             {
                 MsgTipVm.ShowDialog(false, $"删除文件{fileItem.Name}失败, {ex.Message}");
                 return;
             }
-            fileItems.Remove(fileItem);
+            _fileItems.Remove(fileItem);
             MsgTipVm.ShowDialog(true, $"删除文件{fileItem.Name}成功");
         }
         else if (fileItem.ItemType == FileType.Dir)
         {
             try
             {
-                await database.DeleteFolderAsync(fileItem.ID);
+                await _database.DeleteFolderAsync(fileItem.ID);
             }
             catch (Exception ex)
             {
                 MsgTipVm.ShowDialog(false, $"删除文件夹{fileItem.Name}失败, {ex.Message}");
                 return;
             }
-            fileItems.Remove(fileItem);
+            _fileItems.Remove(fileItem);
             MsgTipVm.ShowDialog(true, $"删除文件夹{fileItem.Name}成功");
         }
+    }
+
+    /// <summary>
+    /// 批量删除
+    /// </summary>
+    private void MutiDeleteAction()
+    {
+        var selectedItems = (from tmpItem in _fileItems where tmpItem.Selected select tmpItem).ToList();
+        if (selectedItems.Count == 1)
+        {
+            DeleteAction(selectedItems[0]);
+            return;
+        }
+        ConfirmVm.CompleteAction = () =>
+        {
+            ShowModal = false;
+            if (ConfirmVm.Confirm)
+            {
+                ProcessMutiDeleteItem(selectedItems);
+            }
+        };
+        ShowModal = true;
+        ConfirmVm.ShowDialog("删除确认", "确定要删除选择的文件/文件夹吗?");
+
+    }
+
+    private async void ProcessMutiDeleteItem(List<FileItem> selectedItems)
+    {
+        if (_database is null)
+        {
+            return;
+        }
+        foreach (var fileItem in selectedItems)
+        {
+            if (fileItem.ItemType == FileType.Dir)
+            {
+                try
+                {
+                    await _database.DeleteFolderAsync(fileItem.ID);
+                }
+                catch (Exception ex)
+                {
+                    MsgTipVm.ShowDialog(false, $"删除文件夹{fileItem.Name}失败, {ex.Message}");
+                    return;
+                }
+                _fileItems.Remove(fileItem);
+            }
+            else if (fileItem.ItemType == FileType.File)
+            {
+                try
+                {
+                    await _database.DeleteItemAsync(fileItem.ID);
+                }
+                catch (Exception ex)
+                {
+                    MsgTipVm.ShowDialog(false, $"删除文件{fileItem.Name}失败, {ex.Message}");
+                    return;
+                }
+                _fileItems.Remove(fileItem);
+            }
+        }
+        MsgTipVm.ShowDialog(true, $"批量删除成功");
     }
 
     /// <summary>
@@ -524,7 +658,7 @@ public class MainWindowViewModel : ViewModelBase
 
     private async void ProcessFileUploadSuccess(UploadFileItem item)
     {
-        if (database is null)
+        if (_database is null)
         {
             return;
         }
@@ -535,13 +669,34 @@ public class MainWindowViewModel : ViewModelBase
             Size = item.FileSize,
         };
         itemLog.SyncTime();
-        await database.InsertFileLog(itemLog);
-        if (item.FolderID == currentDirId)
+        await _database.InsertFileLog(itemLog);
+        if (item.FolderID == _currentDirId)
         {
             Dispatcher.UIThread.Invoke(() =>
             {
                 RefreshAction();
             });
+        }
+    }
+
+    /// <summary>
+    /// 设置全选框的状态
+    /// </summary>
+    /// <param name="isSelectAll"></param>
+    private void SetSelectAllStatus(bool isSelectAll)
+    {
+        _isSelectAll = isSelectAll;
+        this.RaisePropertyChanged(nameof(IsSelectAll));
+    }
+
+    /// <summary>
+    /// 处理用户点击全选
+    /// </summary>
+    private void ProcessSelectAll(bool isSelectAll)
+    {
+        foreach (var item in _fileItems)
+        {
+            item.Selected = isSelectAll;
         }
     }
 }

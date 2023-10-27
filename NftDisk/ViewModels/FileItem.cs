@@ -1,6 +1,5 @@
 using System;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform;
 using Liuguang.NftDisk.Common;
 using Liuguang.Storage;
 using ReactiveUI;
@@ -13,34 +12,35 @@ namespace Liuguang.NftDisk.ViewModels;
 public class FileItem : ViewModelBase
 {
     #region Fields
-    private long id = 0;
-    private FileType itemType = FileType.File;
-    private string name = string.Empty;
-    private string cid = string.Empty;
-    private long size = 0;
-    private long uploadTime = 0;
+    private long _id = 0;
+    private FileType _itemType = FileType.File;
+    private string _name = string.Empty;
+    private string _cid = string.Empty;
+    private long _size = 0;
+    private long _uploadTime = 0;
+    private bool _selected = false;
     #endregion
 
     #region Properties
-    public long ID => id;
+    public long ID => _id;
     public long ParentID { get; set; } = 0;
-    public FileType ItemType => itemType;
+    public FileType ItemType => _itemType;
 
     public string Name
     {
-        get => name;
-        set => this.RaiseAndSetIfChanged(ref name, value);
+        get => _name;
+        set => this.RaiseAndSetIfChanged(ref _name, value);
     }
 
     public Bitmap? IconSource
     {
         get
         {
-            if (itemType == FileType.Dir)
+            if (_itemType == FileType.Dir)
             {
                 return AssetTool.LoadIconImage("folder.png");
             }
-            else if (itemType == FileType.File)
+            else if (_itemType == FileType.File)
             {
                 return AssetTool.LoadIconImage("file.png");
             }
@@ -52,11 +52,11 @@ public class FileItem : ViewModelBase
     {
         get
         {
-            if (itemType == FileType.Dir)
+            if (_itemType == FileType.Dir)
             {
                 return "打开";
             }
-            else if (itemType == FileType.File)
+            else if (_itemType == FileType.File)
             {
                 return "获取地址";
             }
@@ -64,23 +64,28 @@ public class FileItem : ViewModelBase
         }
     }
 
-    public bool CanCopyCid => itemType == FileType.File;
+    public bool CanCopyCid => _itemType == FileType.File;
 
-    public string CID => cid;
+    public string CID => _cid;
 
     public string SizeText
     {
         get
         {
-            if (itemType == FileType.Dir)
+            if (_itemType == FileType.Dir)
             {
                 return string.Empty;
             }
-            return SizeTool.ParseSize(size);
+            return SizeTool.ParseSize(_size);
         }
     }
 
-    public string UploadTimeText => ParseUploadTime(uploadTime);
+    public string UploadTimeText => ParseUploadTime(_uploadTime);
+    public bool Selected
+    {
+        get => _selected;
+        set => this.RaiseAndSetIfChanged(ref _selected, value);
+    }
     #endregion
 
     private static string ParseUploadTime(long uploadTime)
@@ -101,12 +106,12 @@ public class FileItem : ViewModelBase
     /// <param name="size"></param>
     public FileItem(long id, long parentID, string name, long uploadTime, string cid, long size)
     {
-        this.id = id;
+        this._id = id;
         ParentID = parentID;
-        this.name = name;
-        this.uploadTime = uploadTime;
-        this.cid = cid;
-        this.size = size;
+        this._name = name;
+        this._uploadTime = uploadTime;
+        this._cid = cid;
+        this._size = size;
     }
 
     /// <summary>
@@ -118,11 +123,11 @@ public class FileItem : ViewModelBase
     /// <param name="uploadTime"></param>
     public FileItem(long id, long parentID, string name, long uploadTime)
     {
-        this.id = id;
+        this._id = id;
         ParentID = parentID;
-        itemType = FileType.Dir;
-        this.name = name;
-        this.uploadTime = uploadTime;
+        _itemType = FileType.Dir;
+        this._name = name;
+        this._uploadTime = uploadTime;
     }
 
 }

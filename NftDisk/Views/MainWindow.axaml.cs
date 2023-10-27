@@ -1,9 +1,11 @@
 using System;
+using System.Reactive.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Liuguang.NftDisk.ViewModels;
+using Liuguang.Storage;
 
 namespace Liuguang.NftDisk.Views;
 
@@ -14,6 +16,38 @@ public partial class MainWindow : Window
         InitializeComponent();
         Loaded += MainView_Loaded;
         Closed += FreeResource;
+    }
+
+    private void OpenFileItem(object? sender, TappedEventArgs e)
+    {
+        if (sender is TextBlock textBlock)
+        {
+            if (textBlock.DataContext is FileItem fileItem)
+            {
+                if (DataContext is MainWindowViewModel viewModel)
+                {
+                    viewModel.OpenDirOrShowFileLinksCommand.Execute(fileItem).Subscribe();
+                }
+            }
+        }
+    }
+
+    private void CopyFileCid(object? sender, TappedEventArgs e)
+    {
+        if (sender is TextBlock textBlock)
+        {
+            if (textBlock.DataContext is FileItem fileItem)
+            {
+                if (fileItem.ItemType != FileType.File)
+                {
+                    return;
+                }
+                if (DataContext is MainWindowViewModel viewModel)
+                {
+                    viewModel.CopyCidCommand.Execute(fileItem).Subscribe();
+                }
+            }
+        }
     }
 
     private async void FreeResource(object? sender, EventArgs e)
@@ -36,7 +70,7 @@ public partial class MainWindow : Window
 
     private void ProcessDrop(object? sender, DragEventArgs eventArgs)
     {
-        
+
         if (DataContext is not MainWindowViewModel viewModel)
         {
             return;

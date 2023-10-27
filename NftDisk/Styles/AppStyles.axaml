@@ -67,11 +67,42 @@
             <Setter Property="Background" Value="#0a58ca"/>
             <Setter Property="BorderBrush" Value="#0a53be"/>
         </Style>
+        <Style Selector="^:disabled /template/ ContentPresenter">
+            <Setter Property="Background" Value="#95bbf3"/>
+            <Setter Property="BorderBrush" Value="#c4d4eb"/>
+        </Style>
+        <Style Selector="^.delete">
+            <Style Selector="^ /template/ ContentPresenter">
+                <Setter Property="Background" Value="#dc3545"/>
+                <Setter Property="BorderBrush" Value="#dc3545"/>
+            </Style>
+            <Style Selector="^:pointerover /template/ ContentPresenter">
+                <Setter Property="Background" Value="#bb2d3b"/>
+                <Setter Property="BorderBrush" Value="#b02a37"/>
+            </Style>
+            <Style Selector="^:pressed /template/ ContentPresenter">
+                <Setter Property="Background" Value="#b02a37"/>
+                <Setter Property="BorderBrush" Value="#a52834"/>
+            </Style>
+            <Style Selector="^:disabled /template/ ContentPresenter">
+                <Setter Property="Background" Value="#dc3545"/>
+                <Setter Property="BorderBrush" Value="#dc3545"/>
+                <Setter Property="Opacity" Value="0.65"/>
+            </Style>
+        </Style>
     </Style>
     <!--搜索框-->
     <Style Selector="TextBox.search">
         <Setter Property="Margin" Value="0,5,5,5"/>
     </Style>
+    <!--链接样式-->
+    <Style Selector="TextBlock.link">
+        <Setter Property="Cursor" Value="Hand"/>
+        <Style Selector="^:pointerover">
+            <Setter Property="Foreground" Value="#ea4335"/>
+            <Setter Property="TextDecorations" Value="Underline"/>
+        </Style>
+    </Style> 
     <!--删除菜单-->
     <Style Selector="MenuItem.delete">
         <Setter Property="TextBlock.Background" Value="#f97348" />
