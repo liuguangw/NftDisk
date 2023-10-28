@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Liuguang.NftDisk.Models;
 using Liuguang.NftDisk.ViewModels;
 using Liuguang.Storage;
 

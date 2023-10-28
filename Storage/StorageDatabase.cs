@@ -6,7 +6,7 @@ namespace Liuguang.Storage;
 public sealed class StorageDatabase
 {
     private readonly string dbFilePath;
-    private SqliteConnection? connection;
+    private SqliteConnection? _connection;
     public StorageDatabase(string filePath)
     {
         dbFilePath = filePath;
@@ -21,19 +21,19 @@ public sealed class StorageDatabase
             firstInit = true;
             CreateDbFile(dbFilePath);
         }
-        connection = await OpenDbFileAsync(dbFilePath);
+        _connection = await OpenDbFileAsync(dbFilePath);
         await InitDatabaseAsync(firstInit);
     }
 
     public async Task CloseAsync()
     {
-        if (connection is null)
+        if (_connection is null)
         {
             return;
         }
-        await connection.CloseAsync();
-        connection.Dispose();
-        connection = null;
+        await _connection.CloseAsync();
+        _connection.Dispose();
+        _connection = null;
     }
 
     private static async Task<SqliteConnection> OpenDbFileAsync(string filePath)
@@ -68,11 +68,11 @@ public sealed class StorageDatabase
         {
             return;
         }
-        if (connection is null)
+        if (_connection is null)
         {
             return;
         }
-        var command = connection.CreateCommand();
+        var command = _connection.CreateCommand();
         command.CommandText =
         @"
         CREATE TABLE files (
@@ -89,18 +89,18 @@ public sealed class StorageDatabase
         ";
         await command.ExecuteNonQueryAsync();
         //
-        command = connection.CreateCommand();
+        command = _connection.CreateCommand();
         command.CommandText = "CREATE INDEX file_index ON files ('parent_id' ASC, 'item_type' ASC, 'name' ASC)";
         await command.ExecuteNonQueryAsync();
     }
 
     public async Task<List<StorageFile>> GetFileListAsync(long parentID)
     {
-        if (connection is null)
+        if (_connection is null)
         {
             throw new Exception("database error, connection is null");
         }
-        var command = connection.CreateCommand();
+        var command = _connection.CreateCommand();
         var orderText = "ORDER BY item_type ASC, name ASC";
         command.CommandText = $"SELECT * FROM files WHERE parent_id={parentID} {orderText}";
         var fileList = new List<StorageFile>();
@@ -136,20 +136,54 @@ public sealed class StorageDatabase
         return fileList;
     }
 
+    /// <summary>
+    /// 只选择文件夹
+    /// </summary>
+    /// <param name="parentID"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    public async Task<List<StorageFile>> GetDirListAsync(long parentID)
+    {
+        if (_connection is null)
+        {
+            throw new Exception("database error, connection is null");
+        }
+        var command = _connection.CreateCommand();
+        var orderText = "ORDER BY name ASC";
+        command.CommandText = $"SELECT * FROM files WHERE parent_id={parentID} AND item_type=0 {orderText}";
+        var fileList = new List<StorageFile>();
+        using var reader = await command.ExecuteReaderAsync();
+        while (reader.Read())
+        {
+            var itemID = reader.GetInt64("id");
+            var itemName = reader.GetString("name");
+            var uploadTime = reader.GetInt64("upload_time");
+            var file = new StorageFile(itemName)
+            {
+                ID = itemID,
+                ParentID = parentID,
+                ItemType = FileType.Dir,
+                UploadTime = uploadTime
+            };
+            fileList.Add(file);
+        }
+        return fileList;
+    }
+
     public async Task<string> GetFullPathAsync(long pathID)
     {
         if (pathID == 0)
         {
             return "/";
         }
-        if (connection is null)
+        if (_connection is null)
         {
             throw new Exception("database error, connection is null");
         }
         StringBuilder fullPath = new();
         while (pathID != 0)
         {
-            var command = connection.CreateCommand();
+            var command = _connection.CreateCommand();
             command.CommandText = $"SELECT id,name,parent_id FROM files WHERE id={pathID}";
             using (var reader = await command.ExecuteReaderAsync())
             {
@@ -172,7 +206,7 @@ public sealed class StorageDatabase
     /// <exception cref="Exception"></exception>
     public async Task<StorageFile?> GetFileInfoAsync(long pathID)
     {
-        if (connection is null)
+        if (_connection is null)
         {
             throw new Exception("database error, connection is null");
         }
@@ -180,36 +214,46 @@ public sealed class StorageDatabase
         {
             return null;
         }
+        return await GetFileInfoAsync(pathID, _connection);
+    }
+
+    private static async Task<StorageFile?> GetFileInfoAsync(long pathID, SqliteConnection connection)
+    {
         var command = connection.CreateCommand();
-        command.CommandText = $"SELECT *FROM files WHERE id={pathID}";
+        command.CommandText = $"SELECT * FROM files WHERE id={pathID}";
         using var reader = await command.ExecuteReaderAsync();
-        StorageFile? file = null;
         if (reader.Read())
         {
-            var itemID = reader.GetInt64("id");
-            var parentID = reader.GetInt64("parent_id");
-            var itemName = reader.GetString("name");
-            var uploadTime = reader.GetInt64("upload_time");
-            var fType = reader.GetInt32("item_type");
-            file = new StorageFile(itemName)
-            {
-                ID = itemID,
-                ParentID = parentID,
-                UploadTime = uploadTime
-            };
-            //目录
-            if (fType == 0)
-            {
-                file.ItemType = FileType.Dir;
-            }
-            //文件
-            else if (fType == 1)
-            {
-                var cid = reader.GetString("cid");
-                var size = reader.GetInt64("size");
-                file.CID = cid;
-                file.Size = size;
-            }
+            return ReadStorageFile(reader);
+        }
+        return null;
+    }
+
+    private static StorageFile ReadStorageFile(SqliteDataReader reader)
+    {
+        var itemID = reader.GetInt64("id");
+        var parentID = reader.GetInt64("parent_id");
+        var itemName = reader.GetString("name");
+        var uploadTime = reader.GetInt64("upload_time");
+        var fType = reader.GetInt32("item_type");
+        var file = new StorageFile(itemName)
+        {
+            ID = itemID,
+            ParentID = parentID,
+            UploadTime = uploadTime
+        };
+        //目录
+        if (fType == 0)
+        {
+            file.ItemType = FileType.Dir;
+        }
+        //文件
+        else if (fType == 1)
+        {
+            var cid = reader.GetString("cid");
+            var size = reader.GetInt64("size");
+            file.CID = cid;
+            file.Size = size;
         }
         return file;
     }
@@ -223,52 +267,38 @@ public sealed class StorageDatabase
     /// <exception cref="Exception"></exception>
     public async Task<StorageFile?> GetFileInfoAsync(long pathID, string name)
     {
-        if (connection is null)
+        if (_connection is null)
         {
             throw new Exception("database error, connection is null");
         }
+        return await GetFileInfoAsync(pathID, name, _connection);
+    }
+
+    private static async Task<StorageFile?> GetFileInfoAsync(long pathID, string name, SqliteConnection connection)
+    {
         var command = connection.CreateCommand();
         command.CommandText = "SELECT * FROM files WHERE parent_id=$parent_id AND name=$name";
         command.Parameters.AddWithValue("$parent_id", pathID);
         command.Parameters.AddWithValue("$name", name);
         using var reader = await command.ExecuteReaderAsync();
-        StorageFile? file = null;
         if (reader.Read())
         {
-            var itemID = reader.GetInt64("id");
-            var parentID = reader.GetInt64("parent_id");
-            var itemName = reader.GetString("name");
-            var uploadTime = reader.GetInt64("upload_time");
-            var fType = reader.GetInt32("item_type");
-            file = new StorageFile(itemName)
-            {
-                ID = itemID,
-                ParentID = parentID,
-                UploadTime = uploadTime
-            };
-            //目录
-            if (fType == 0)
-            {
-                file.ItemType = FileType.Dir;
-            }
-            //文件
-            else if (fType == 1)
-            {
-                var cid = reader.GetString("cid");
-                var size = reader.GetInt64("size");
-                file.CID = cid;
-                file.Size = size;
-            }
+            return ReadStorageFile(reader);
         }
-        return file;
+        return null;
     }
 
-    public async Task InsertFileLog(StorageFile fileLog)
+    public async Task InsertFileLogAsync(StorageFile fileLog)
     {
-        if (connection is null)
+        if (_connection is null)
         {
             throw new Exception("database error, connection is null");
         }
+        await InsertFileLogAsync(fileLog, _connection);
+    }
+
+    private static async Task InsertFileLogAsync(StorageFile fileLog, SqliteConnection connection)
+    {
         var command = connection.CreateCommand();
         var paramNames = new string[]{
             "parent_id", "item_type", "name", "cid", "size", "upload_time"
@@ -306,6 +336,46 @@ public sealed class StorageDatabase
         }
     }
 
+    public async Task UpdateFileLogAsync(long pathID, StorageFile fileLog)
+    {
+        if (_connection is null)
+        {
+            throw new Exception("database error, connection is null");
+        }
+        await UpdateFileLogAsync(pathID, fileLog, _connection);
+    }
+
+    private static async Task UpdateFileLogAsync(long pathID, StorageFile fileLog, SqliteConnection connection)
+    {
+        var command = connection.CreateCommand();
+        var paramNames = new string[]{
+            "parent_id", "item_type", "name", "cid", "size", "upload_time"
+        };
+        var updateStrBuilder = new StringBuilder();
+        for (var i = 0; i < paramNames.Length; i++)
+        {
+            if (i == 0)
+            {
+                updateStrBuilder.AppendFormat("{0}=${0}", paramNames[i]);
+            }
+            else
+            {
+                updateStrBuilder.AppendFormat(", {0}=${0}", paramNames[i]);
+            }
+        }
+        var updateStr = updateStrBuilder.ToString();
+        command.CommandText = $"UPDATE files SET {updateStr} WHERE id=$id";
+        command.Parameters.AddWithValue("$parent_id", fileLog.ParentID);
+        command.Parameters.AddWithValue("$item_type", (int)fileLog.ItemType);
+        command.Parameters.AddWithValue("$name", fileLog.Name);
+        command.Parameters.AddWithValue("$cid", fileLog.CID);
+        command.Parameters.AddWithValue("$size", fileLog.Size);
+        command.Parameters.AddWithValue("$upload_time", fileLog.UploadTime);
+        command.Parameters.AddWithValue("$id", pathID);
+        await command.ExecuteNonQueryAsync();
+
+    }
+
     /// <summary>
     /// 更新名称
     /// </summary>
@@ -315,11 +385,11 @@ public sealed class StorageDatabase
     /// <exception cref="Exception"></exception>
     public async Task UpdateFilenameAsync(long fId, string newName)
     {
-        if (connection is null)
+        if (_connection is null)
         {
             throw new Exception("database error, connection is null");
         }
-        var command = connection.CreateCommand();
+        var command = _connection.CreateCommand();
         command.CommandText = "UPDATE files SET name = $name WHERE id = $id";
         command.Parameters.AddWithValue("$name", newName);
         command.Parameters.AddWithValue("$id", fId);
@@ -328,11 +398,11 @@ public sealed class StorageDatabase
 
     public async Task DeleteItemAsync(long fId)
     {
-        if (connection is null)
+        if (_connection is null)
         {
             throw new Exception("database error, connection is null");
         }
-        var command = connection.CreateCommand();
+        var command = _connection.CreateCommand();
         command.CommandText = "DELETE FROM files WHERE id = $id";
         command.Parameters.AddWithValue("$id", fId);
         await command.ExecuteNonQueryAsync();
@@ -346,15 +416,32 @@ public sealed class StorageDatabase
     /// <exception cref="Exception"></exception>
     public async Task DeleteFolderAsync(long dirId)
     {
-        if (connection is null)
+        if (_connection is null)
         {
             throw new Exception("database error, connection is null");
         }
+        using var transaction = _connection.BeginTransaction(deferred: true);
+        try
+        {
+            await DeleteFolderAsync(dirId, _connection);
+            await transaction.CommitAsync();
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    private static async Task DeleteFolderAsync(long dirId, SqliteConnection connection)
+    {
         List<long> dirIdList = new() { dirId };
-        List<long> toDeleteIdList = new() { dirId }; ;
+        List<long> toDeleteIdList = new();
         while (dirIdList.Count > 0)
         {
             var parentIdCondition = FormatInCondition(dirIdList);
+            toDeleteIdList.Clear();
+            toDeleteIdList.AddRange(dirIdList);
             dirIdList.Clear();
             var command = connection.CreateCommand();
             //获取子项列表
@@ -365,18 +452,23 @@ public sealed class StorageDatabase
             {
                 var subItemType = reader.GetInt32("item_type");
                 var subItemId = reader.GetInt64("id");
-                toDeleteIdList.Add(subItemId);
                 if (subItemType == 0)
                 {
+                    //目录
                     dirIdList.Add(subItemId);
                 }
+                else if (subItemType == 1)
+                {
+                    //文件
+                    toDeleteIdList.Add(subItemId);
+                }
             }
+            var idCondition = FormatInCondition(toDeleteIdList);
+            var delCommand = connection.CreateCommand();
+            delCommand.CommandText = $"DELETE FROM files WHERE id {idCondition}";
+            //Trace.WriteLine(delCommand.CommandText);
+            await delCommand.ExecuteNonQueryAsync();
         }
-        var idCondition = FormatInCondition(toDeleteIdList);
-        var delCommand = connection.CreateCommand();
-        delCommand.CommandText = $"DELETE FROM files WHERE id {idCondition}";
-        //Trace.WriteLine(delCommand.CommandText);
-        await delCommand.ExecuteNonQueryAsync();
     }
 
     private static string FormatInCondition(IEnumerable<long> itemIds)
@@ -396,5 +488,153 @@ public sealed class StorageDatabase
             var idStr = string.Join(", ", idStrList);
             return $"IN ({idStr})";
         }
+    }
+
+    public async Task CopyFileAsync(long pathID, long destPathID)
+    {
+        if (_connection is null)
+        {
+            throw new Exception("database error, connection is null");
+        }
+        var fileInfo = await GetFileInfoAsync(pathID, _connection);
+        if (fileInfo is null)
+        {
+            throw new Exception($"ID {pathID} not exists");
+        }
+        if (fileInfo.ItemType != FileType.File)
+        {
+            throw new Exception($"invalid file ID {pathID}");
+
+        }
+        fileInfo.ID = 0;
+        fileInfo.ParentID = destPathID;
+        var existFile = await GetFileInfoAsync(destPathID, fileInfo.Name, _connection);
+        if (existFile is null)
+        {
+            //insert
+            await InsertFileLogAsync(fileInfo, _connection);
+        }
+        else
+        {
+            //update
+            await UpdateFileLogAsync(existFile.ID, fileInfo, _connection);
+        }
+    }
+
+    public async Task CopyFolderAsync(long dirId, long destPathID)
+    {
+        if (_connection is null)
+        {
+            throw new Exception("database error, connection is null");
+        }
+        using var transaction = _connection.BeginTransaction(deferred: true);
+        try
+        {
+            await CopyFolderAsync(dirId, destPathID, _connection);
+            await transaction.CommitAsync();
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    private static async Task CopyFolderAsync(long dirId, long destPathID, SqliteConnection connection)
+    {
+        //获取目录信息
+        var sourceFolder = await GetFileInfoAsync(dirId, connection);
+        if (sourceFolder is null)
+        {
+            throw new Exception($"folder id {dirId} not exists");
+        }
+        await CopyFolderAsync(sourceFolder, destPathID, connection);
+    }
+    private static async Task CopyFolderAsync(StorageFile sourceFolder, long destPathID, SqliteConnection connection)
+    {
+        if (sourceFolder.ItemType != FileType.Dir)
+        {
+            throw new Exception($"invalid folder id {sourceFolder.ID}");
+        }
+        //copy sourceFolder
+        var sourceFolderClone = new StorageFile(sourceFolder.Name)
+        {
+            ID = 0,
+            ParentID = destPathID,
+            ItemType = FileType.Dir,
+            UploadTime = sourceFolder.UploadTime
+        };
+        var existDir = await GetFileInfoAsync(destPathID, sourceFolder.Name, connection);
+        if (existDir is null)
+        {
+            await InsertFileLogAsync(sourceFolderClone, connection);
+        }
+        else
+        {
+            await UpdateFileLogAsync(existDir.ID, sourceFolderClone, connection);
+            sourceFolderClone.ID = existDir.ID;
+        }
+        //获取子项
+        var command = connection.CreateCommand();
+        command.CommandText = $"SELECT * FROM files WHERE parent_id={sourceFolder.ID}";
+        var subFileList = new List<StorageFile>();
+        var subDirList = new List<StorageFile>();
+        using var reader = await command.ExecuteReaderAsync();
+        while (reader.Read())
+        {
+            var item = ReadStorageFile(reader);
+            if (item.ItemType == FileType.File)
+            {
+                subFileList.Add(item);
+            }
+            else if (item.ItemType == FileType.Dir)
+            {
+                subDirList.Add(item);
+            }
+        }
+        var subItemParentID = sourceFolderClone.ID;
+        //copy 子项文件
+        foreach (var subFile in subFileList)
+        {
+            subFile.ID = 0;
+            subFile.ParentID = subItemParentID;
+            var existSubFile = await GetFileInfoAsync(subItemParentID, subFile.Name, connection);
+            if (existSubFile is null)
+            {
+                await InsertFileLogAsync(subFile, connection);
+            }
+            else
+            {
+                await UpdateFileLogAsync(existSubFile.ID, subFile, connection);
+            }
+        }
+        //copy 子项目录
+        foreach (var subDir in subDirList)
+        {
+            await CopyFolderAsync(subDir, subItemParentID, connection);
+        }
+    }
+
+    public async Task MoveFileAsync(long pathID, long destPathID)
+    {
+        if (_connection is null)
+        {
+            throw new Exception("database error, connection is null");
+        }
+        var fileInfo = await GetFileInfoAsync(pathID, _connection);
+        if (fileInfo is null)
+        {
+            throw new Exception($"ID {pathID} not exists");
+        }
+        var existFile = await GetFileInfoAsync(destPathID, fileInfo.Name, _connection);
+        if (existFile is not null)
+        {
+            throw new Exception($"目标目录下已存在{existFile.Name}");
+        }
+        var command = _connection.CreateCommand();
+        command.CommandText = "UPDATE files SET parent_id=$parent_id WHERE id = $id";
+        command.Parameters.AddWithValue("$parent_id", destPathID);
+        command.Parameters.AddWithValue("$id", pathID);
+        await command.ExecuteNonQueryAsync();
     }
 }

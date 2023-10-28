@@ -1,11 +1,12 @@
 using Avalonia.Media.Imaging;
 using Liuguang.NftDisk.Common;
-using Liuguang.NftDisk.ViewModels;
+
+namespace Liuguang.NftDisk.Models;
 
 /// <summary>
 /// 上传时, 本地选择的文件或者目录
 /// </summary>
-public class LocalItem : ViewModelBase
+public class LocalItem : ModelBase
 {
     private readonly string _name;
     private readonly bool _isFile;

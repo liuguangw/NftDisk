@@ -59,13 +59,13 @@
                             <TextBlock Text="上传文件夹"/>
                         </WrapPanel>
                     </Button>
-                    <Button Classes="icon_text" IsEnabled="{Binding HasSelection}">
+                    <Button Classes="icon_text" IsEnabled="{Binding HasSelection}" Command="{Binding MutiCopyItemCommand}">
                         <WrapPanel>
                             <Image Source="/Assets/icons/copy.png"/>
                             <TextBlock Text="复制"/>
                         </WrapPanel>
                     </Button>
-                    <Button Classes="icon_text" IsEnabled="{Binding HasSelection}">
+                    <Button Classes="icon_text" IsEnabled="{Binding HasSelection}" Command="{Binding MutiMoveItemCommand}">
                         <WrapPanel>
                             <Image Source="/Assets/icons/move.png"/>
                             <TextBlock Text="移动"/>
@@ -168,6 +168,8 @@
             DataContext="{Binding SettingVm}" IsVisible="{Binding ShowModal}" />
         <pages:DownloadUrlPage Width="940" Height="480" HorizontalAlignment="Center" VerticalAlignment="Center"
             DataContext="{Binding DownloadUrlVm}" IsVisible="{Binding ShowModal}" />
+        <pages:SaveDirPage Width="940" Height="480" HorizontalAlignment="Center" VerticalAlignment="Center"
+            DataContext="{Binding SaveDirVm}" IsVisible="{Binding ShowModal}" />
         <pages:ConfirmPage Width="420" Height="230" HorizontalAlignment="Center" VerticalAlignment="Center"
             DataContext="{Binding ConfirmVm}" IsVisible="{Binding ShowModal}" />
         <pages:MsgTipPage DataContext="{Binding MsgTipVm}"

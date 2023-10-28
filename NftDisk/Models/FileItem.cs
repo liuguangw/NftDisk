@@ -4,12 +4,12 @@ using Liuguang.NftDisk.Common;
 using Liuguang.Storage;
 using ReactiveUI;
 
-namespace Liuguang.NftDisk.ViewModels;
+namespace Liuguang.NftDisk.Models;
 
 /// <summary>
 /// 列表展示的文件或者目录
 /// </summary>
-public class FileItem : ViewModelBase
+public class FileItem : ModelBase
 {
     #region Fields
     private long _id = 0;

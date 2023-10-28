@@ -7,16 +7,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Platform.Storage;
 using Liuguang.NftDisk.Common;
-using Liuguang.NftDisk.Models;
 using Liuguang.Storage;
 using ReactiveUI;
 
-namespace Liuguang.NftDisk.ViewModels;
+namespace Liuguang.NftDisk.Models;
 
 /// <summary>
 /// 表示一条文件上传任务
 /// </summary>
-public class UploadFileItem : ViewModelBase
+public class UploadFileItem : ModelBase
 {
     #region Fields
     private readonly long _folderID;

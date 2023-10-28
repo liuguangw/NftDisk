@@ -1,7 +1,6 @@
 namespace Liuguang.Storage;
 public class StorageFile
 {
-    const long ROOT_PATH_ID = 0;
     public long ID { get; set; } = 0;
     public long ParentID { get; set; } = 0;
     public FileType ItemType { get; set; } = FileType.File;

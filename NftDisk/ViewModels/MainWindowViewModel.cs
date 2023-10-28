@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Reactive;
 using System.Threading.Tasks;
@@ -11,6 +12,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Liuguang.NftDisk.Config;
+using Liuguang.NftDisk.Models;
 using Liuguang.Storage;
 using ReactiveUI;
 
@@ -76,6 +78,8 @@ public class MainWindowViewModel : ViewModelBase
     public UploadListViewModel UploadListVm { get; } = new();
     public SettingViewModel SettingVm { get; } = new();
     public DownloadUrlViewModel DownloadUrlVm { get; } = new();
+    private SaveDirViewModel _saveDirVm;
+    public SaveDirViewModel SaveDirVm => _saveDirVm;
     public ConfirmViewModel ConfirmVm { get; } = new();
     public MsgTipViewModel MsgTipVm => MsgTipViewModel.Instance;
     public ReactiveCommand<FileItem, Unit> OpenDirOrShowFileLinksCommand { get; }
@@ -88,19 +92,23 @@ public class MainWindowViewModel : ViewModelBase
     public ReactiveCommand<Unit, Unit> GotoUpFolderCommand { get; }
     public bool CanGotoUpFolder => _currentDirId != 0;
     public ReactiveCommand<Unit, Unit> MutiDeleteItemCommand { get; }
+    public ReactiveCommand<Unit, Unit> MutiCopyItemCommand { get; }
+    public ReactiveCommand<Unit, Unit> MutiMoveItemCommand { get; }
     #endregion
 
     public MainWindowViewModel()
     {
+        _saveDirVm = new SaveDirViewModel(() => _database);
         OpenDirOrShowFileLinksCommand = ReactiveCommand.Create<FileItem>(OpenDirOrShowFileLinks);
         CopyCidCommand = ReactiveCommand.Create<FileItem>(CopyCidAction);
         RenameCommand = ReactiveCommand.Create<FileItem>(RenameAction);
         DeleteItemCommand = ReactiveCommand.Create<FileItem>(DeleteAction);
         var canGotoUpFolder = this.WhenAnyValue(item => item.CanGotoUpFolder);
         GotoUpFolderCommand = ReactiveCommand.Create(GotoUpFolderAction, canGotoUpFolder);
-        var canMutiDelete = this.WhenAnyValue(item => item.HasSelection);
-        MutiDeleteItemCommand = ReactiveCommand.Create(MutiDeleteAction, canMutiDelete);
-
+        var canMuti = this.WhenAnyValue(item => item.HasSelection);
+        MutiDeleteItemCommand = ReactiveCommand.Create(MutiDeleteAction, canMuti);
+        MutiCopyItemCommand = ReactiveCommand.Create(MutiCopyAction, canMuti);
+        MutiMoveItemCommand = ReactiveCommand.Create(MutiMoveAction, canMuti);
 
         UploadListVm.UploadSuccessAction = ProcessFileUploadSuccess;
         _fileItems.CollectionChanged += FileItemListChanged;
@@ -281,7 +289,7 @@ public class MainWindowViewModel : ViewModelBase
                 Name = dirName,
             };
             dbDirInfo.SyncTime();
-            await _database.InsertFileLog(dbDirInfo);
+            await _database.InsertFileLogAsync(dbDirInfo);
             //刷新列表
             if (parentDirID == _currentDirId)
             {
@@ -445,7 +453,7 @@ public class MainWindowViewModel : ViewModelBase
         folderLog.SyncTime();
         try
         {
-            await _database.InsertFileLog(folderLog);
+            await _database.InsertFileLogAsync(folderLog);
         }
         catch (Exception ex)
         {
@@ -587,7 +595,6 @@ public class MainWindowViewModel : ViewModelBase
         };
         ShowModal = true;
         ConfirmVm.ShowDialog("删除确认", "确定要删除选择的文件/文件夹吗?");
-
     }
 
     private async void ProcessMutiDeleteItem(List<FileItem> selectedItems)
@@ -626,6 +633,115 @@ public class MainWindowViewModel : ViewModelBase
             }
         }
         MsgTipVm.ShowDialog(true, $"批量删除成功");
+    }
+
+    /// <summary>
+    /// 批量复制
+    /// </summary>
+    private void MutiCopyAction()
+    {
+        var selectedItems = (from tmpItem in _fileItems where tmpItem.Selected select tmpItem).ToList();
+        _saveDirVm.CompleteAction = () =>
+        {
+            if (_saveDirVm.Confirm)
+            {
+                ProcessMutiCopyItem(selectedItems, _saveDirVm.CurrentDirID, _saveDirVm.CurrentDir);
+            }
+            else
+            {
+                _saveDirVm.HideDialog();
+                ShowModal = false;
+            }
+        };
+        ShowModal = true;
+        _saveDirVm.ShowDialog("复制文件/文件夹", selectedItems);
+    }
+
+    private async void ProcessMutiCopyItem(List<FileItem> selectedItems, long destDirID, string destDirPath)
+    {
+        if (_database is null)
+        {
+            return;
+        }
+        foreach (var fileItem in selectedItems)
+        {
+            if (fileItem.ItemType == FileType.Dir)
+            {
+                try
+                {
+                    await _database.CopyFolderAsync(fileItem.ID, destDirID);
+                }
+                catch (Exception ex)
+                {
+                    MsgTipVm.ShowDialog(false, $"复制文件夹{fileItem.Name}失败, {ex.Message}");
+                    _saveDirVm.RefreshAction();
+                    return;
+                }
+            }
+            else if (fileItem.ItemType == FileType.File)
+            {
+                try
+                {
+                    await _database.CopyFileAsync(fileItem.ID, destDirID);
+                }
+                catch (Exception ex)
+                {
+                    MsgTipVm.ShowDialog(false, $"复制文件{fileItem.Name}失败, {ex.Message}");
+                    _saveDirVm.RefreshAction();
+                    return;
+                }
+            }
+        }
+        _saveDirVm.HideDialog();
+        ShowModal = false;
+        MsgTipVm.ShowDialog(true, $"复制文件/文件夹到{destDirPath}成功");
+    }
+
+    /// <summary>
+    /// 批量移动
+    /// </summary>
+    private void MutiMoveAction()
+    {
+        var selectedItems = (from tmpItem in _fileItems where tmpItem.Selected select tmpItem).ToList();
+        _saveDirVm.CompleteAction = () =>
+        {
+            if (_saveDirVm.Confirm)
+            {
+                ProcessMutiMoveItem(selectedItems, _saveDirVm.CurrentDirID, _saveDirVm.CurrentDir);
+            }
+            else
+            {
+                _saveDirVm.HideDialog();
+                ShowModal = false;
+            }
+        };
+        ShowModal = true;
+        _saveDirVm.ShowDialog("移动文件/文件夹", selectedItems);
+    }
+
+    private async void ProcessMutiMoveItem(List<FileItem> selectedItems, long destDirID, string destDirPath)
+    {
+        if (_database is null)
+        {
+            return;
+        }
+        foreach (var fileItem in selectedItems)
+        {
+            try
+            {
+                await _database.MoveFileAsync(fileItem.ID, destDirID);
+            }
+            catch (Exception ex)
+            {
+                MsgTipVm.ShowDialog(false, $"移动{fileItem.Name}失败, {ex.Message}");
+                _saveDirVm.RefreshAction();
+                return;
+            }
+            _fileItems.Remove(fileItem);
+        }
+        _saveDirVm.HideDialog();
+        ShowModal = false;
+        MsgTipVm.ShowDialog(true, $"移动文件/文件夹到{destDirPath}成功");
     }
 
     /// <summary>
@@ -669,7 +785,15 @@ public class MainWindowViewModel : ViewModelBase
             Size = item.FileSize,
         };
         itemLog.SyncTime();
-        await _database.InsertFileLog(itemLog);
+        var existFile = await _database.GetFileInfoAsync(item.FolderID, item.FileName);
+        if (existFile is null)
+        {
+            await _database.InsertFileLogAsync(itemLog);
+        }
+        else
+        {
+            await _database.UpdateFileLogAsync(existFile.ID, itemLog);
+        }
         if (item.FolderID == _currentDirId)
         {
             Dispatcher.UIThread.Invoke(() =>

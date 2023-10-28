@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Reactive;
+using Liuguang.NftDisk.Models;
 using ReactiveUI;
 
 namespace Liuguang.NftDisk.ViewModels;
