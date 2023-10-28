@@ -18,7 +18,7 @@
     <Panel>
         <DockPanel>
             <StackPanel DockPanel.Dock="Top" Margin="8,0">
-                <Grid Height="46" RowDefinitions="*" ColumnDefinitions="36,36,36,*,36,36,36">
+                <Grid Height="46" RowDefinitions="*" ColumnDefinitions="36,36,36,*,36,36">
                     <Button Classes="icon" Grid.Column="0" ToolTip.Tip="上一级" Command="{Binding GotoUpFolderCommand}">
                         <Image Source="/Assets/icons/arrow_up.png"/>
                     </Button>
@@ -32,10 +32,7 @@
                     <Button Classes="icon" Grid.Column="4" ToolTip.Tip="任务列表" Command="{Binding SwitchTaskListAction}">
                         <Image Source="/Assets/icons/task_list.png"/>
                     </Button>
-                    <Button Classes="icon" Grid.Column="5" ToolTip.Tip="上传数据库">
-                        <Image Source="/Assets/icons/database_sync.png"/>
-                    </Button>
-                    <Button Classes="icon" Grid.Column="6" ToolTip.Tip="设置" Command="{Binding ShowSettingAction}" Margin="0,5">
+                    <Button Classes="icon" Grid.Column="5" ToolTip.Tip="设置" Command="{Binding ShowSettingAction}" Margin="0,5">
                         <Image Source="/Assets/icons/setting.png"/>
                     </Button>
                 </Grid>
