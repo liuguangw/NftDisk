@@ -203,6 +203,48 @@ public class MainWindowViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// 点击上传文件的处理
+    /// </summary>
+    public async void ChoseUploadFileAction()
+    {
+        if (Application.Current!.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            var storageProvider = desktop.MainWindow!.StorageProvider;
+            var files = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "选择需要上传的文件",
+                AllowMultiple = true
+            });
+
+            if (files.Count >= 1)
+            {
+                AskUploadFiles(files);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 点击上传文件夹的处理
+    /// </summary>
+    public async void ChoseUploadDirAction()
+    {
+        if (Application.Current!.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            var storageProvider = desktop.MainWindow!.StorageProvider;
+            var files = await storageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = "选择需要上传的文件夹",
+                AllowMultiple = true
+            });
+
+            if (files.Count >= 1)
+            {
+                AskUploadFiles(files);
+            }
+        }
+    }
+
+    /// <summary>
     /// 询问是否上传这些文件、目录
     /// </summary>
     /// <param name="files"></param>
