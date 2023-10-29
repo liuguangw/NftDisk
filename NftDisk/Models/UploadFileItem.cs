@@ -28,6 +28,11 @@ public class UploadFileItem : ModelBase
     private UploadStatus _status = UploadStatus.Pending;
     private CancellationTokenSource? _cancelSource = null;
     /// <summary>
+    /// 每次最多上传多少个256KB节点
+    /// 174 *256KB = 43.5MB
+    /// </summary>
+    private readonly long _taskNode0MaxCount = 174;
+    /// <summary>
     /// 文件块的大小列表
     /// </summary>
     private long[] filePartSizeList;
@@ -58,26 +63,19 @@ public class UploadFileItem : ModelBase
             {
                 return _fileSize;
             }
-            long t1Size = 0;
-            long t2Size = 0;
+            long totalSize = 0;
             for (var i = 0; i < filePartSizeList.Length; i++)
             {
                 if (taskPartStatusList[i] == UploadStatus.Success)
                 {
-                    t1Size += taskPartSizeList[i];
-                    t2Size += taskPartSizeList[i];
+                    totalSize += filePartSizeList[i];
                 }
-                else
+                else if (taskPartStatusList[i] == UploadStatus.Uploading)
                 {
-                    t1Size += taskPartUploadSizeList[i];
-                    t2Size += taskPartSizeList[i];
+                    totalSize += filePartSizeList[i] * taskPartUploadSizeList[i] / taskPartSizeList[i];
                 }
             }
-            if (t2Size == 0)
-            {
-                return 0;
-            }
-            return _fileSize * t1Size / t2Size;
+            return totalSize;
         }
     }
 
@@ -116,9 +114,6 @@ public class UploadFileItem : ModelBase
                 case UploadStatus.Uploading:
                     double percent = UploadSize * 100 / (double)_fileSize;
                     displayText = $"上传中({percent:N2}%)";
-                    break;
-                case UploadStatus.WaitResponse:
-                    displayText = "等待响应";
                     break;
                 case UploadStatus.Success:
                     displayText = "上传成功";
@@ -163,7 +158,7 @@ public class UploadFileItem : ModelBase
         var fileInfo = new FileInfo(localFilePath);
         _fileSize = fileInfo.Length;
         //分块大小
-        var perSize = CarContainer.FilePartMaxSize();
+        var perSize = CarContainer.FilePartMaxSize(_taskNode0MaxCount);
         int partCount;
         if (_fileSize <= perSize)
         {
@@ -214,6 +209,7 @@ public class UploadFileItem : ModelBase
         var client = new HttpClient()
         {
             BaseAddress = new Uri("https://api.nft.storage"),
+            Timeout = TimeSpan.FromMinutes(10)
         };
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;
@@ -225,7 +221,10 @@ public class UploadFileItem : ModelBase
         _cancelSource = cancelSource;
         var cancelToken = cancelSource.Token;
         using var fileStream = await _sourceFile.OpenReadAsync();
-        var container = new CarContainer(fileStream);
+        var container = new CarContainer(fileStream)
+        {
+            TaskNode0MaxCount = _taskNode0MaxCount
+        };
         var HttpClient = CreateHttpClient(apiToken);
         var partCount = container.TaskCount();
         Status = UploadStatus.Uploading;
@@ -237,6 +236,7 @@ public class UploadFileItem : ModelBase
             {
                 continue;
             }
+            taskPartUploadSizeList[i] = 0;
             taskPartStatusList[i] = UploadStatus.Uploading;
             try
             {
@@ -249,7 +249,6 @@ public class UploadFileItem : ModelBase
                 {
                     taskPartStatusList[i] = UploadStatus.Stopped;
                     errorMessage = "已取消任务";
-
                 }
                 else
                 {
@@ -275,10 +274,6 @@ public class UploadFileItem : ModelBase
         taskPartUploadSizeList[taskIndex] = completed;
         this.RaisePropertyChanged(nameof(StatusText));
         this.RaisePropertyChanged(nameof(TipText));
-        if (total == completed)
-        {
-            Status = UploadStatus.WaitResponse;
-        }
     }
 
     private async Task UploadPartAsync(HttpClient httpClient, CarContainer container, int taskIndex, CancellationToken cancelToken)
@@ -287,7 +282,7 @@ public class UploadFileItem : ModelBase
         byte[] carData;
         using (var memoryStream = new MemoryStream())
         {
-            cidData = await container.RunCarTaskAsync(memoryStream, taskIndex, cancelToken);
+            cidData = await container.WriteCarAsync(memoryStream, taskIndex, cancelToken);
             carData = memoryStream.ToArray();
         }
         CID = CidTool.ToV0String(cidData);

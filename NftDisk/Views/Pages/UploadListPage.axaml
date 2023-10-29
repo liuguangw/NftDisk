@@ -33,7 +33,7 @@
                         </DataTemplate>
                       </DataGridTemplateColumn.CellTemplate>
                   </DataGridTemplateColumn>
-                  <DataGridTextColumn Header="大小" Width="90"
+                  <DataGridTextColumn Header="大小" Width="110"
                             Binding="{Binding FileSizeText}" />
                   <DataGridTemplateColumn Header="状态" Width="*">
                       <DataGridTemplateColumn.CellTemplate>

@@ -30,15 +30,10 @@ public class ProgressContent : HttpContent
 
     protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
     {
-        return SerializeToStreamAsyncCore(stream, default);
+        return ProcessWriteAsync(stream, default);
     }
 
     protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken)
-    {
-        return SerializeToStreamAsyncCore(stream, cancellationToken);
-    }
-
-    protected Task SerializeToStreamAsyncCore(Stream stream, CancellationToken cancellationToken)
     {
         return ProcessWriteAsync(stream, cancellationToken);
     }

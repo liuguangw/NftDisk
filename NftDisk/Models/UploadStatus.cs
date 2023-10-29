@@ -6,8 +6,6 @@ public enum UploadStatus
     Pending,
     //正在上传
     Uploading,
-    //等待服务器响应
-    WaitResponse,
     //上传成功
     Success,
     //上传失败

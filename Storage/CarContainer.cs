@@ -7,76 +7,62 @@ namespace Liuguang.Storage;
 
 public class CarContainer
 {
-    private readonly Stream stream;
-    private readonly long fileSize;
+    private readonly Stream _stream;
+    private readonly long _fileSize;
+    private PBNode? _rootPBNode = null;
     /// <summary>
-    /// 每个node包含的文件字节的最大值(256KB)
+    /// 每个node0包含的文件字节的最大值(256KB)
     /// </summary>
-    const long NODE_MAX_SIZE = 262144;
+    const long NODE0_MAX_SIZE = 262144;
 
     /// <summary>
-    /// 每个link最多直接包含多少个256KB的子link,
+    /// 每个node1最多直接包含多少个node0
     /// 
     /// size = 45613056(43.5MB)
     /// </summary>
-    const long LINK_NODE_MAX_COUNT = 174;
+    const long NODE1_MAX_CHILDREN_COUNT = 174;
 
-    /// <summary>
-    /// 每次任务上传的文件内容大小
-    /// 43.5MB *2 = 87MB
-    /// </summary>
-    const int TASK_LINK_MAX_COUNT = 2;
+    private long _taskNode0MaxCount = 174;
+    public long TaskNode0MaxCount
+    {
+        get => _taskNode0MaxCount;
+        set
+        {
+            _taskNode0MaxCount = (value >= NODE1_MAX_CHILDREN_COUNT) ? value : NODE1_MAX_CHILDREN_COUNT;
+        }
+    }
 
     public CarContainer(Stream stream)
     {
-        this.stream = stream;
-        fileSize = stream.Length;
+        _stream = stream;
+        _fileSize = stream.Length;
     }
 
-    public static long FilePartMaxSize()
-    {
-        return NODE_MAX_SIZE * LINK_NODE_MAX_COUNT * TASK_LINK_MAX_COUNT;
+    public static long FilePartMaxSize(long node0MaxCount){
+        
+        return NODE0_MAX_SIZE * node0MaxCount;
     }
 
-    private long AllNodeCount()
+    private static async Task<byte[]> ReadBufferAsync(Stream stream, long sizeCount, CancellationToken cancellationToken)
     {
-        if (fileSize == 0)
+        var buffer = new byte[sizeCount];
+        long offset = 0;
+        while (offset < sizeCount)
         {
-            return 1;
+            var count = sizeCount - offset;
+            offset += await stream.ReadAsync(buffer.AsMemory((int)offset, (int)count), cancellationToken);
         }
-        var count = fileSize / NODE_MAX_SIZE;
-        if (fileSize % NODE_MAX_SIZE != 0)
-        {
-            count++;
-        }
-        return count;
+        return buffer;
     }
 
-    private long NodeContentLength(long nodeIndex)
+    private static async Task<PBNode> ReadNode0Async(Stream stream, long node0Size, CancellationToken cancellationToken)
     {
-        var offset = nodeIndex * NODE_MAX_SIZE;
-        var nodeSize = NODE_MAX_SIZE;
-        var leftSize = fileSize - offset;
-        if (nodeSize > leftSize)
-        {
-            nodeSize = leftSize;
-        }
-        return nodeSize;
-    }
-
-    private async Task<PBNode> ReadNodeAsync(long nodeIndex, CancellationToken cancelToken)
-    {
-        var offset = nodeIndex * NODE_MAX_SIZE;
-        var nodeSize = NodeContentLength(nodeIndex);
-        var buffer = new byte[nodeSize];
-        //seek
-        stream.Seek(offset, SeekOrigin.Begin);
-        await stream.ReadAsync(buffer, cancelToken);
+        var fileData = await ReadBufferAsync(stream, node0Size, cancellationToken);
         var unixfsData = new UnixFsData()
         {
             Type = UnixFsData.Types.DataType.File,
-            Filesize = (ulong)nodeSize,
-            Data_ = ByteString.CopyFrom(buffer),
+            Filesize = (ulong)node0Size,
+            Data_ = ByteString.CopyFrom(fileData),
         };
         var data = unixfsData.ToByteArray();
         return new PBNode()
@@ -85,39 +71,143 @@ public class CarContainer
         };
     }
 
-    private static (byte[], byte[]) PackNode(PBNode pbNode)
+    private static async Task<PBNode> ReadNode1Async(Stream stream, long node1Size, Stream? node0OutStream, CancellationToken cancellationToken)
     {
-        var packData = pbNode.ToByteArray();
-        var cid = CalcCid(packData);
-        return (cid, packData);
+        var loopCount = node1Size / NODE0_MAX_SIZE;
+        if (node1Size % NODE0_MAX_SIZE != 0)
+        {
+            loopCount++;
+        }
+        if (loopCount > NODE1_MAX_CHILDREN_COUNT)
+        {
+            throw new Exception($"invalid node1Size {node1Size}");
+        }
+        var node1Root = new PBNode();
+        var node1UnixfsData = new UnixFsData()
+        {
+            Type = UnixFsData.Types.DataType.File,
+            Filesize = (ulong)node1Size,
+        };
+
+        var tFileSize = node1Size;
+        while (tFileSize > 0)
+        {
+            var nodeSize = Math.Min(tFileSize, NODE0_MAX_SIZE);
+            tFileSize -= nodeSize;
+
+            var node0 = await ReadNode0Async(stream, nodeSize, cancellationToken);
+            node1UnixfsData.Blocksizes.Add((ulong)nodeSize);
+            byte[] node0Cid;
+            int node0Length;
+            if (node0OutStream is null)
+            {
+                (node0Cid, node0Length) = PackPBNode(node0);
+            }
+            else
+            {
+                //避免重复计算
+                (node0Cid, node0Length) = await WritePBNodeAsync(node0OutStream, node0, cancellationToken);
+            }
+            node1Root.Links.Add(new PBLink()
+            {
+                Hash = ByteString.CopyFrom(node0Cid),
+                Name = string.Empty,
+                Tsize = (ulong)node0Length,
+            });
+        }
+        node1Root.Data = node1UnixfsData.ToByteString();
+        return node1Root;
+    }
+
+    private static (byte[], int) PackPBNode(PBNode pbNode)
+    {
+        var pbNodeRaw = pbNode.ToByteArray();
+        var cidData = CalcCid(pbNodeRaw);
+        return (cidData, pbNodeRaw.Length);
+    }
+
+    private static async Task<(byte[], int)> WritePBNodeAsync(Stream outputStream, PBNode pbNode, CancellationToken cancellationToken)
+    {
+        var pbNodeRaw = pbNode.ToByteArray();
+        var cidData = CalcCid(pbNodeRaw);
+        //varint
+        var fullLength = cidData.Length + pbNodeRaw.Length;
+        var varintData = Varint.ToUvarint((ulong)fullLength);
+        await outputStream.WriteAsync(varintData, cancellationToken);
+        await outputStream.WriteAsync(cidData, cancellationToken);
+        await outputStream.WriteAsync(pbNodeRaw, cancellationToken);
+        return (cidData, pbNodeRaw.Length);
     }
 
     private static byte[] CalcCid(byte[] bytes)
     {
+        var hashData = SHA256.HashData(bytes);
         var cidData = new byte[2 + 32];
         cidData[0] = 0x12;
         cidData[1] = 0x20;
-        var hashData = SHA256.HashData(bytes);
         hashData.CopyTo(cidData, 2);
         return cidData;
     }
 
-    public int TaskCount()
+    private async Task LoadRootPBNodeAsync(CancellationToken cancellationToken)
     {
-        var perSize = FilePartMaxSize();
-        if (fileSize <= perSize)
-        {
-            return 1;
-        }
-        var count = fileSize / perSize;
-        if (fileSize % perSize != 0)
-        {
-            count++;
-        }
-        return (int)count;
+        _rootPBNode = await LoadRootPBNodeAsync(_stream, _fileSize, cancellationToken);
     }
 
-    private async Task WriteCarHeadAsync(Stream outputStream, byte[] cid, CancellationToken cancelToken)
+    private static async Task<PBNode> LoadRootPBNodeAsync(Stream stream, long fileSize, CancellationToken cancellationToken)
+    {
+        if (fileSize <= NODE0_MAX_SIZE)
+        {
+            return await ReadNode0Async(stream, fileSize, cancellationToken);
+        }
+        var node1MaxSize = NODE0_MAX_SIZE * NODE1_MAX_CHILDREN_COUNT;
+        if (fileSize <= node1MaxSize)
+        {
+            return await ReadNode1Async(stream, fileSize, null, cancellationToken);
+        }
+        //
+        var node2Root = new PBNode();
+        var node2UnixfsData = new UnixFsData()
+        {
+            Type = UnixFsData.Types.DataType.File,
+            Filesize = (ulong)fileSize,
+        };
+        var tFileSize = fileSize;
+        while (tFileSize > 0)
+        {
+            var nodeSize = Math.Min(tFileSize, node1MaxSize);
+            tFileSize -= nodeSize;
+            PBNode nodex;
+            if (nodeSize <= NODE0_MAX_SIZE)
+            {
+                nodex = await ReadNode0Async(stream, nodeSize, cancellationToken);
+            }
+            else
+            {
+                nodex = await ReadNode1Async(stream, nodeSize, null, cancellationToken);
+            }
+            node2UnixfsData.Blocksizes.Add((ulong)nodeSize);
+            var (nodexCid, nodexLength) = PackPBNode(nodex);
+            ulong linkTSize = (ulong)nodexLength;
+            if (nodex.Links.Count > 0)
+            {
+                foreach (var linkItem in nodex.Links)
+                {
+                    linkTSize += linkItem.Tsize;
+                }
+            }
+            node2Root.Links.Add(new PBLink()
+            {
+                Hash = ByteString.CopyFrom(nodexCid),
+                Name = string.Empty,
+                Tsize = linkTSize,
+            });
+        }
+        node2Root.Data = node2UnixfsData.ToByteString();
+        return node2Root;
+    }
+
+    private static async Task WriteCarHeadAsync(Stream outputStream, byte[] cid, CancellationToken cancellationToken)
     {
         var part = new byte[]{
             0x38,//总长度
@@ -129,243 +219,180 @@ public class CarContainer
             0x58, 0x23,//bytes(35)
             0x0,//cid前缀
         };
-        await outputStream.WriteAsync(part, cancelToken);
-        await outputStream.WriteAsync(cid, cancelToken);
+        await outputStream.WriteAsync(part, cancellationToken);
+        await outputStream.WriteAsync(cid, cancellationToken);
         var part1 = new byte[]{
             0x67,//text(7),
             0x76,0x65,0x72,0x73,0x69,0x6F,0x6E,//version
             0x1, //unsigned(1)
         };
-        await outputStream.WriteAsync(part1, cancelToken);
+        await outputStream.WriteAsync(part1, cancellationToken);
     }
 
-    public async Task<byte[]> RunCarTaskAsync(Stream outputStream, int taskIndex, CancellationToken cancelToken)
+    public async Task<byte[]> WriteCarAsync(Stream outputStream, CancellationToken cancellationToken = default)
     {
-        if (fileSize <= NODE_MAX_SIZE)
+        await LoadRootPBNodeAsync(cancellationToken);
+        var rootPbNode = _rootPBNode!;
+        var (cidData, _) = PackPBNode(rootPbNode);
+        await WriteCarHeadAsync(outputStream, cidData, cancellationToken);
+        await WritePBNodeAsync(outputStream, rootPbNode, cancellationToken);
+        if (_fileSize <= NODE0_MAX_SIZE)
         {
-            // [0 - 256KB]
-            return await RunCarTaskV0Async(outputStream, cancelToken);
+            return cidData;
         }
-        else if (fileSize > NODE_MAX_SIZE && fileSize <= (LINK_NODE_MAX_COUNT * NODE_MAX_SIZE))
+        var node1MaxSize = NODE0_MAX_SIZE * NODE1_MAX_CHILDREN_COUNT;
+        if (_fileSize <= node1MaxSize)
         {
-            // (256KB - 43.5MB]
-            return await RunCarTaskV1Async(outputStream, cancelToken);
+            _stream.Seek(0, SeekOrigin.Begin);
+            await WriteNode0ListAsync(_stream, _fileSize, outputStream, cancellationToken);
+            return cidData;
         }
-        else if (fileSize > (LINK_NODE_MAX_COUNT * NODE_MAX_SIZE) && fileSize <= (TASK_LINK_MAX_COUNT * LINK_NODE_MAX_COUNT * NODE_MAX_SIZE))
+        _stream.Seek(0, SeekOrigin.Begin);
+        var tFileSize = _fileSize;
+        while (tFileSize > 0)
         {
-            // (43.5MB - 87MB]
-            return await RunCarTaskV2Async(outputStream, cancelToken);
-        }
-        else if (fileSize > TASK_LINK_MAX_COUNT * LINK_NODE_MAX_COUNT * NODE_MAX_SIZE)
-        {
-            // (87MB - ?]
-            return await RunCarTaskV3Async(outputStream, taskIndex, cancelToken);
-        }
-        else
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-    private async Task<(byte[], int)> WritePbNodeAsync(Stream outputStream, PBNode pbNode, bool writeHead = false, CancellationToken cancelToken = default)
-    {
-        var (cid, data) = PackNode(pbNode);
-        if (writeHead)
-        {
-            await WriteCarHeadAsync(outputStream, cid, cancelToken);
-        }
-        var fLength = cid.Length + data.Length;
-        //varint
-        var varintData = Varint.ToUvarint((ulong)fLength);
-        await outputStream.WriteAsync(varintData, cancelToken);
-        await outputStream.WriteAsync(cid, cancelToken);
-        await outputStream.WriteAsync(data, cancelToken);
-        return (cid, data.Length);
-    }
-
-    /// <summary>
-    /// 处理 <=256KB 大小的文件
-    /// </summary>
-    /// <param name="outputStream"></param>
-    /// <returns></returns>
-    private async Task<byte[]> RunCarTaskV0Async(Stream outputStream, CancellationToken cancelToken)
-    {
-        var pbNode = await ReadNodeAsync(0, cancelToken);
-        var result = await WritePbNodeAsync(outputStream, pbNode, true, cancelToken);
-        return result.Item1;
-    }
-
-    /// <summary>
-    /// 写入一个link，每个link最多包含174个子元素(43.5MB)
-    /// </summary>
-    /// <param name="outputStream"></param>
-    /// <param name="linkIndex">link序号</param>
-    /// <param name="writeHead">是否写入car head头</param>
-    /// <returns></returns>
-    private async Task<(byte[], long)> WriteLinkAsync(Stream outputStream, int linkIndex, bool writeHead, CancellationToken cancelToken)
-    {
-        var nodeIndex = linkIndex * LINK_NODE_MAX_COUNT;
-        var nodeTotalCount = AllNodeCount();
-        var leftNodeCount = nodeTotalCount - nodeIndex;
-        var loopCount = Math.Min(LINK_NODE_MAX_COUNT, leftNodeCount);
-        using var memStream = new MemoryStream();
-        var linkPbNode = new PBNode();
-        var linkUnixFsData = new UnixFsData()
-        {
-            Type = UnixFsData.Types.DataType.File,
-            Filesize = 0,
-        };
-        long totalDataLength = 0;
-        for (var i = 0; i < loopCount; i++)
-        {
-            //Console.WriteLine("node:{0}",nodeIndex);
-            var pbNode = await ReadNodeAsync(nodeIndex, cancelToken);
-            var (cid, dataLength) = await WritePbNodeAsync(memStream, pbNode, cancelToken: cancelToken);
-            totalDataLength += dataLength;
-            //add links
-            linkPbNode.Links.Add(new PBLink()
+            var nodeSize = Math.Min(tFileSize, node1MaxSize);
+            tFileSize -= nodeSize;
+            if (nodeSize <= NODE0_MAX_SIZE)
             {
-                Hash = ByteString.CopyFrom(cid),
-                Tsize = (ulong)dataLength,
-                Name = string.Empty,
-            });
-            var nodeSize = (ulong)NodeContentLength(nodeIndex);
-            linkUnixFsData.Filesize += nodeSize;
-            linkUnixFsData.Blocksizes.Add(nodeSize);
-            nodeIndex++;
-        }
-        linkPbNode.Data = linkUnixFsData.ToByteString();
-        var (linkCid, linkDataLength) = await WritePbNodeAsync(outputStream, linkPbNode, writeHead, cancelToken);
-        totalDataLength += linkDataLength;
-        memStream.Seek(0, SeekOrigin.Begin);
-        await memStream.CopyToAsync(outputStream, cancelToken);
-        await outputStream.FlushAsync(cancelToken);
-        return (linkCid, totalDataLength);
-    }
-
-    /// <summary>
-    /// 处理 (256KB - 43.5MB] 大小的文件
-    /// </summary>
-    /// <param name="outputStream"></param>
-    /// <returns></returns>
-    /// <exception cref="NotImplementedException"></exception>
-    private async Task<byte[]> RunCarTaskV1Async(Stream outputStream, CancellationToken cancelToken)
-    {
-        var result = await WriteLinkAsync(outputStream, 0, true, cancelToken);
-        return result.Item1;
-    }
-
-    /// <summary>
-    /// 处理 (43.5MB - 87MB] 大小的文件
-    /// </summary>
-    /// <param name="outputStream"></param>
-    /// <returns></returns>
-    /// <exception cref="NotImplementedException"></exception>
-    private async Task<byte[]> RunCarTaskV2Async(Stream outputStream, CancellationToken cancelToken)
-    {
-        using var memStream = new MemoryStream();
-        var (cid1, dataLength1) = await WriteLinkAsync(memStream, 0, false, cancelToken);
-        var (cid2, dataLength2) = await WriteLinkAsync(memStream, 1, false, cancelToken);
-        var contentLength1 = NODE_MAX_SIZE * LINK_NODE_MAX_COUNT;
-        long contentLength2 = contentLength1;
-        if (contentLength1 * 2 > fileSize)
-        {
-            contentLength2 = fileSize - contentLength1;
-        }
-        var rootPbNode = new PBNode();
-        var rootUnixFsData = new UnixFsData()
-        {
-            Type = UnixFsData.Types.DataType.File,
-            Filesize = (ulong)fileSize,
-        };
-        //add links
-        rootPbNode.Links.Add(new PBLink()
-        {
-            Hash = ByteString.CopyFrom(cid1),
-            Tsize = (ulong)dataLength1,
-            Name = string.Empty,
-        });
-        rootPbNode.Links.Add(new PBLink()
-        {
-            Hash = ByteString.CopyFrom(cid2),
-            Tsize = (ulong)dataLength2,
-            Name = string.Empty,
-        });
-        rootUnixFsData.Blocksizes.Add((ulong)contentLength1);
-        rootUnixFsData.Blocksizes.Add((ulong)contentLength2);
-        //
-        rootPbNode.Data = rootUnixFsData.ToByteString();
-        var result = await WritePbNodeAsync(outputStream, rootPbNode, true, cancelToken);
-        memStream.Seek(0, SeekOrigin.Begin);
-        await memStream.CopyToAsync(outputStream, cancelToken);
-        await outputStream.FlushAsync(cancelToken);
-        return result.Item1;
-    }
-    /// <summary>
-    /// 处理大于 87MB 大小的文件
-    /// </summary>
-    /// <param name="outputStream"></param>
-    /// <returns></returns>
-    /// <exception cref="NotImplementedException"></exception>
-    private async Task<byte[]> RunCarTaskV3Async(Stream outputStream, int taskIndex, CancellationToken cancelToken)
-    {
-        var rootPbNode = new PBNode();
-        var rootUnixFsData = new UnixFsData()
-        {
-            Type = UnixFsData.Types.DataType.File,
-            Filesize = (ulong)fileSize,
-        };
-        using var sStream = new MemoryStream();
-        //
-        var nodeTotalCount = AllNodeCount();
-        var taskTotalCount = TaskCount();
-        var linkIndex = 0;
-        //
-        var normalLinkContentSize = (ulong)LINK_NODE_MAX_COUNT * NODE_MAX_SIZE;
-        var lastContentSize = (ulong)fileSize % normalLinkContentSize;
-        for (var i = 0; i < taskTotalCount; i++)
-        {
-            using (var memStream = new MemoryStream())
+                var node0 = await ReadNode0Async(_stream, nodeSize, cancellationToken);
+                await WritePBNodeAsync(outputStream, node0, cancellationToken);
+            }
+            else
             {
-                for (var j = 0; j < TASK_LINK_MAX_COUNT; j++)
+                using (var memStream = new MemoryStream())
                 {
-
-                    var (cid, dataLength) = await WriteLinkAsync(memStream, linkIndex, false, cancelToken);
-                    linkIndex++;
-                    nodeTotalCount -= LINK_NODE_MAX_COUNT;
-                    if (nodeTotalCount <= 0)
-                    {
-                        rootUnixFsData.Blocksizes.Add(lastContentSize);
-                    }
-                    else
-                    {
-                        rootUnixFsData.Blocksizes.Add(normalLinkContentSize);
-                    }
-                    //add links
-                    rootPbNode.Links.Add(new PBLink()
-                    {
-                        Hash = ByteString.CopyFrom(cid),
-                        Tsize = (ulong)dataLength,
-                        Name = string.Empty,
-                    });
-                    if (nodeTotalCount <= 0)
-                    {
-                        break;
-                    }
-                }
-                if (i == taskIndex)
-                {
+                    var node1 = await ReadNode1Async(_stream, nodeSize, memStream, cancellationToken);
+                    await WritePBNodeAsync(outputStream, node1, cancellationToken);
                     memStream.Seek(0, SeekOrigin.Begin);
-                    await memStream.CopyToAsync(sStream, cancelToken);
+                    await memStream.CopyToAsync(outputStream, cancellationToken);
                 }
             }
         }
-        //
-        rootPbNode.Data = rootUnixFsData.ToByteString();
-        var result = await WritePbNodeAsync(outputStream, rootPbNode, true, cancelToken);
-        sStream.Seek(0, SeekOrigin.Begin);
-        await sStream.CopyToAsync(outputStream, cancelToken);
-        await outputStream.FlushAsync(cancelToken);
-        return result.Item1;
+        return cidData;
+    }
+
+    private static async Task WriteNode0ListAsync(Stream stream, long totalSize, Stream outputStream, CancellationToken cancellationToken)
+    {
+        var loopCount = totalSize / NODE0_MAX_SIZE;
+        if (totalSize % NODE0_MAX_SIZE != 0)
+        {
+            loopCount++;
+        }
+        if (loopCount > NODE1_MAX_CHILDREN_COUNT)
+        {
+            throw new Exception($"invalid node1Size {totalSize}");
+        }
+        var tFileSize = totalSize;
+        while (tFileSize > 0)
+        {
+            var nodeSize = Math.Min(tFileSize, NODE0_MAX_SIZE);
+            tFileSize -= nodeSize;
+            var node0 = await ReadNode0Async(stream, nodeSize, cancellationToken);
+            await WritePBNodeAsync(outputStream, node0, cancellationToken);
+        }
+    }
+    public int TaskCount()
+    {
+        var perSize = FilePartMaxSize(_taskNode0MaxCount);
+        if (_fileSize <= perSize)
+        {
+            return 1;
+        }
+        var count = _fileSize / perSize;
+        if (_fileSize % perSize != 0)
+        {
+            count++;
+        }
+        return (int)count;
+    }
+
+    public async Task<byte[]> WriteCarAsync(Stream outputStream, int taskIndex, CancellationToken cancellationToken = default)
+    {
+        var partSize = FilePartMaxSize(_taskNode0MaxCount);
+        if (_fileSize <= partSize)
+        {
+            //不需要分片
+            return await WriteCarAsync(outputStream, cancellationToken);
+        }
+        if (_rootPBNode is null)
+        {
+            await LoadRootPBNodeAsync(cancellationToken);
+        }
+        var rootPbNode = _rootPBNode!;
+        var (cidData, _) = PackPBNode(rootPbNode);
+        await WriteCarHeadAsync(outputStream, cidData, cancellationToken);
+        await WritePBNodeAsync(outputStream, rootPbNode, cancellationToken);
+        var processedSize = partSize * taskIndex;
+        if (_stream.Position != processedSize)
+        {
+            _stream.Seek(processedSize, SeekOrigin.Begin);
+        }
+        //文件剩余部分的大小
+        var fileRmainSize = _fileSize - processedSize;
+        //写入大小计数
+        long nodeFileSize = 0;
+        var node1MaxSize = NODE0_MAX_SIZE * NODE1_MAX_CHILDREN_COUNT;
+        if (processedSize % node1MaxSize != 0)
+        {
+            var lastNode1Offset = processedSize / node1MaxSize * node1MaxSize;
+            //被截断的左边部分大小
+            var part0Size = processedSize - lastNode1Offset;
+            _stream.Seek(-part0Size, SeekOrigin.Current);
+            //node1的总大小
+            var lastNode1Size = Math.Min(fileRmainSize + part0Size, node1MaxSize);
+            //右边部分的大小
+            nodeFileSize = lastNode1Size - part0Size;
+            fileRmainSize -= nodeFileSize;
+            var lastNode1 = await ReadNode1Async(_stream, lastNode1Size, null, cancellationToken);
+            //写入上一个node1的定义
+            await WritePBNodeAsync(outputStream, lastNode1, cancellationToken);
+            //写入上一个node1的剩余子节点
+            _stream.Seek(-nodeFileSize, SeekOrigin.Current);
+            await WriteNode0ListAsync(_stream, nodeFileSize, outputStream, cancellationToken);
+        }
+        if (fileRmainSize == 0)
+        {
+            return cidData;
+        }
+        while (nodeFileSize < partSize)
+        {
+            var node1Size = Math.Min(fileRmainSize, node1MaxSize);
+            nodeFileSize += node1Size;
+            if (node1Size <= NODE0_MAX_SIZE)
+            {
+                var node0 = await ReadNode0Async(_stream, fileRmainSize, cancellationToken);
+                await WritePBNodeAsync(outputStream, node0, cancellationToken);
+                break;
+            }
+            var node1CutSize = node1Size;
+            if (nodeFileSize > partSize)
+            {
+                node1CutSize -= nodeFileSize - partSize;
+                nodeFileSize = partSize;
+            }
+            fileRmainSize -= node1CutSize;
+            using (var memStream = new MemoryStream())
+            {
+                var node1 = await ReadNode1Async(_stream, node1Size, memStream, cancellationToken);
+                await WritePBNodeAsync(outputStream, node1, cancellationToken);
+                if (node1Size == node1CutSize)
+                {
+                    memStream.Seek(0, SeekOrigin.Begin);
+                    await memStream.CopyToAsync(outputStream, cancellationToken);
+                }
+                else
+                {
+                    _stream.Seek(-node1Size, SeekOrigin.Current);
+                    await WriteNode0ListAsync(_stream, node1CutSize, outputStream, cancellationToken);
+                }
+            }
+            //
+            if (fileRmainSize == 0)
+            {
+                break;
+            }
+        }
+        return cidData;
     }
 }

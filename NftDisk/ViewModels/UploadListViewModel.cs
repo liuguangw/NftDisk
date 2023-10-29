@@ -120,12 +120,9 @@ public class UploadListViewModel : ViewModelBase
     {
         foreach (var item in _taskList)
         {
-            if (item.Status == UploadStatus.Uploading || item.Status == UploadStatus.WaitResponse)
+            if (item.Status == UploadStatus.Uploading)
             {
-                if (item.CancelSource != null)
-                {
-                    item.CancelSource.Cancel();
-                }
+                item.CancelSource?.Cancel();
             }
             else if (item.Status == UploadStatus.Pending)
             {
