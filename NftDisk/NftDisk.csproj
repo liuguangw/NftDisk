@@ -10,6 +10,9 @@
     <ApplicationIcon>.\Assets\logo.ico</ApplicationIcon>
     <AvaloniaVersion>11.0.2</AvaloniaVersion>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <DebugType>none</DebugType>
+  </PropertyGroup>
 
   <ItemGroup>
     <Folder Include="Models\" />
