@@ -9,6 +9,11 @@ public static class CidTool
         return Base58.Bitcoin.Encode(cidData);
     }
 
+    public static byte[] FromV0String(string cidStr)
+    {
+        return Base58.Bitcoin.Decode(cidStr);
+    }
+
     public static string ToV1String(byte[] cidData)
     {
         var base32CidData = new byte[2 + cidData.Length];

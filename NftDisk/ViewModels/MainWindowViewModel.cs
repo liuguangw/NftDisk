@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Linq;
 using System.Reactive;
 using System.Threading.Tasks;
@@ -11,6 +10,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Liuguang.NftDisk.Common;
 using Liuguang.NftDisk.Config;
 using Liuguang.NftDisk.Models;
 using Liuguang.Storage;
@@ -84,6 +84,7 @@ public class MainWindowViewModel : ViewModelBase
     public MsgTipViewModel MsgTipVm => MsgTipViewModel.Instance;
     public ReactiveCommand<FileItem, Unit> OpenDirOrShowFileLinksCommand { get; }
     public ReactiveCommand<FileItem, Unit> CopyCidCommand { get; }
+    public ReactiveCommand<FileItem, Unit> RefreshCidCommand { get; }
     public ReactiveCommand<FileItem, Unit> RenameCommand { get; }
     public ReactiveCommand<FileItem, Unit> DeleteItemCommand { get; }
     /// <summary>
@@ -101,6 +102,7 @@ public class MainWindowViewModel : ViewModelBase
         _saveDirVm = new SaveDirViewModel(() => _database);
         OpenDirOrShowFileLinksCommand = ReactiveCommand.Create<FileItem>(OpenDirOrShowFileLinks);
         CopyCidCommand = ReactiveCommand.Create<FileItem>(CopyCidAction);
+        RefreshCidCommand = ReactiveCommand.Create<FileItem>(RefreshCidAction);
         RenameCommand = ReactiveCommand.Create<FileItem>(RenameAction);
         DeleteItemCommand = ReactiveCommand.Create<FileItem>(DeleteAction);
         var canGotoUpFolder = this.WhenAnyValue(item => item.CanGotoUpFolder);
@@ -147,7 +149,7 @@ public class MainWindowViewModel : ViewModelBase
             {
                 item = new FileItem(
                     fileInfo.ID, fileInfo.ParentID,
-                    fileInfo.Name, fileInfo.UploadTime
+                    fileInfo.Name, fileInfo.UploadTime, fileInfo.CID
                 );
             }
             else if (fileInfo.ItemType == FileType.File)
@@ -421,13 +423,78 @@ public class MainWindowViewModel : ViewModelBase
             {
 
                 await clipboard.SetTextAsync(fileItem.CID);
-                MsgTipVm.ShowDialog(true, $"复制文件{fileItem.Name}的CID成功");
+                MsgTipVm.ShowDialog(true, $"复制{fileItem.Name}的CID成功");
             }
             catch (Exception ex)
             {
-                MsgTipVm.ShowDialog(true, $"复制文件{fileItem.Name}的CID失败, {ex.Message}");
+                MsgTipVm.ShowDialog(false, $"复制{fileItem.Name}的CID失败, {ex.Message}");
             }
         }
+    }
+
+    /// <summary>
+    /// 刷新文件夹的cid
+    /// </summary>
+    /// <param name="fileItem"></param>
+    private async void RefreshCidAction(FileItem fileItem)
+    {
+        if (_database is null)
+        {
+            return;
+        }
+        const string EMPTY_DIR_CID = "QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn";
+        var files = await _database.GetFileListAsync(fileItem.ID);
+        //空文件夹的cid
+        var emptyDirCidData = CidTool.FromV0String(EMPTY_DIR_CID);
+        string dirResultCid = EMPTY_DIR_CID;
+        if (files.Count != 0)
+        {
+            var dirCar = new DirectoryCar();
+            foreach (var item in files)
+            {
+                byte[] itemCid = emptyDirCidData;
+                if (!string.IsNullOrEmpty(item.CID))
+                {
+                    itemCid = CidTool.FromV0String(item.CID);
+                }
+                dirCar.Items.Add(new DirectoryCar.ChildItem(itemCid)
+                {
+                    Name = item.Name,
+                    TSize = item.Size
+                });
+            }
+            var cidData = dirCar.GetCID();
+            dirResultCid = CidTool.ToV0String(cidData);
+            if (fileItem.CID == dirResultCid)
+            {
+                MsgTipVm.ShowDialog(true, $"{fileItem.Name}的CID无变化,无需刷新");
+                return;
+            }
+            try
+            {
+                await DirectoryUploadTool.UploadDirectoryCarAsync(dirCar);
+            }
+            catch (Exception ex)
+            {
+                MsgTipVm.ShowDialog(false, $"刷新{fileItem.Name}的CID失败, {ex.Message}");
+            }
+        }
+        if (fileItem.CID == dirResultCid)
+        {
+            MsgTipVm.ShowDialog(true, $"{fileItem.Name}的CID无变化,无需刷新");
+            return;
+        }
+        try
+        {
+            await _database.UpdateCidAsync(fileItem.ID, dirResultCid);
+        }
+        catch (Exception ex)
+        {
+            MsgTipVm.ShowDialog(false, $"刷新{fileItem.Name}的CID失败, {ex.Message}");
+            return;
+        }
+        fileItem.CID = dirResultCid;
+        MsgTipVm.ShowDialog(true, $"刷新{fileItem.Name}的CID成功");
     }
 
     private async void GotoUpFolderAction()
@@ -558,7 +625,6 @@ public class MainWindowViewModel : ViewModelBase
         }
         fileItem.Name = newName;
         MsgTipVm.ShowDialog(true, "重命名成功");
-        RefreshAction();
     }
 
     /// <summary>

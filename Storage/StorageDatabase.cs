@@ -111,11 +111,13 @@ public sealed class StorageDatabase
             var itemName = reader.GetString("name");
             var uploadTime = reader.GetInt64("upload_time");
             var fType = reader.GetInt32("item_type");
+            var cid = reader.GetString("cid");
             var file = new StorageFile(itemName)
             {
                 ID = itemID,
                 ParentID = parentID,
-                UploadTime = uploadTime
+                UploadTime = uploadTime,
+                CID = cid,
             };
             //目录
             if (fType == 0)
@@ -126,9 +128,7 @@ public sealed class StorageDatabase
             //文件
             else if (fType == 1)
             {
-                var cid = reader.GetString("cid");
                 var size = reader.GetInt64("size");
-                file.CID = cid;
                 file.Size = size;
                 fileList.Add(file);
             }
@@ -392,6 +392,26 @@ public sealed class StorageDatabase
         var command = _connection.CreateCommand();
         command.CommandText = "UPDATE files SET name = $name WHERE id = $id";
         command.Parameters.AddWithValue("$name", newName);
+        command.Parameters.AddWithValue("$id", fId);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// 更新文件夹的cid
+    /// </summary>
+    /// <param name="fId"></param>
+    /// <param name="newName"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    public async Task UpdateCidAsync(long fId, string newCid)
+    {
+        if (_connection is null)
+        {
+            throw new Exception("database error, connection is null");
+        }
+        var command = _connection.CreateCommand();
+        command.CommandText = "UPDATE files SET cid = $cid WHERE id = $id";
+        command.Parameters.AddWithValue("$cid", newCid);
         command.Parameters.AddWithValue("$id", fId);
         await command.ExecuteNonQueryAsync();
     }

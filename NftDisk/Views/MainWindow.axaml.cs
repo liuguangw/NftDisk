@@ -39,10 +39,6 @@ public partial class MainWindow : Window
         {
             if (textBlock.DataContext is FileItem fileItem)
             {
-                if (fileItem.ItemType != FileType.File)
-                {
-                    return;
-                }
                 if (DataContext is MainWindowViewModel viewModel)
                 {
                     viewModel.CopyCidCommand.Execute(fileItem).Subscribe();

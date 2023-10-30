@@ -63,10 +63,13 @@ public class FileItem : ModelBase
             return "error";
         }
     }
+    public bool CanRefreshCid => _itemType == FileType.Dir;
 
-    public bool CanCopyCid => _itemType == FileType.File;
-
-    public string CID => _cid;
+    public string CID
+    {
+        get => _cid;
+        set => this.RaiseAndSetIfChanged(ref _cid, value);
+    }
 
     public string SizeText
     {
@@ -106,12 +109,12 @@ public class FileItem : ModelBase
     /// <param name="size"></param>
     public FileItem(long id, long parentID, string name, long uploadTime, string cid, long size)
     {
-        this._id = id;
+        _id = id;
         ParentID = parentID;
-        this._name = name;
-        this._uploadTime = uploadTime;
-        this._cid = cid;
-        this._size = size;
+        _name = name;
+        _uploadTime = uploadTime;
+        _cid = cid;
+        _size = size;
     }
 
     /// <summary>
@@ -121,13 +124,14 @@ public class FileItem : ModelBase
     /// <param name="parentID"></param>
     /// <param name="name"></param>
     /// <param name="uploadTime"></param>
-    public FileItem(long id, long parentID, string name, long uploadTime)
+    public FileItem(long id, long parentID, string name, long uploadTime, string cid)
     {
-        this._id = id;
+        _id = id;
         ParentID = parentID;
         _itemType = FileType.Dir;
-        this._name = name;
-        this._uploadTime = uploadTime;
+        _name = name;
+        _uploadTime = uploadTime;
+        _cid = cid;
     }
 
 }

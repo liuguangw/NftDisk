@@ -128,10 +128,16 @@
                                         HorizontalContentAlignment="Center">
                                         <SplitButton.Flyout>
                                             <MenuFlyout Placement="Bottom">
-                                                <MenuItem Header="复制CID" IsVisible="{Binding CanCopyCid}"
+                                                <MenuItem Header="复制CID"
                                                     Command="{Binding $parent[DataGrid].DataContext.CopyCidCommand}" CommandParameter="{Binding}">
                                                     <MenuItem.Icon>
                                                         <Image Width="16" Height="16" Source="/Assets/icons/copy.png" />
+                                                    </MenuItem.Icon>
+                                                </MenuItem>
+                                                <MenuItem Header="刷新CID" IsVisible="{Binding CanRefreshCid}"
+                                                    Command="{Binding $parent[DataGrid].DataContext.RefreshCidCommand}" CommandParameter="{Binding}">
+                                                    <MenuItem.Icon>
+                                                        <Image Width="16" Height="16" Source="/Assets/icons/reload.png" />
                                                     </MenuItem.Icon>
                                                 </MenuItem>
                                                 <MenuItem Header="重命名"
