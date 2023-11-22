@@ -423,7 +423,7 @@ public class MainWindowViewModel : ViewModelBase
             {
 
                 await clipboard.SetTextAsync(fileItem.CID);
-                MsgTipVm.ShowDialog(true, $"复制{fileItem.Name}的CID成功");
+                MsgTipVm.ShowDialog(true, "复制CID成功");
             }
             catch (Exception ex)
             {

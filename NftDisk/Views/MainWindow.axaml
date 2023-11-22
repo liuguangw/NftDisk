@@ -96,7 +96,7 @@
                                         <Image Height="40" VerticalAlignment="Center" Source="{Binding IconSource}"/>
                                         <TextBlock Margin="5" Classes="link" Tapped="OpenFileItem"
                                             HorizontalAlignment="Left" VerticalAlignment="Center" 
-                                            Text="{Binding Name}"/>
+                                            Text="{Binding Name}" ToolTip.Tip="{Binding Name}"/>
                                     </WrapPanel>
                                 </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
